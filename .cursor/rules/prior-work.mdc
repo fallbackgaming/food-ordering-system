@@ -1,0 +1,38 @@
+---
+description: What we already built before the fresh start — reuse this product and architecture knowledge
+alwaysApply: true
+---
+
+# Cyber cafe food ordering — prior work
+
+This repo was reset to a homepage only. Rebuild from this, do not invent a different product.
+
+## Product
+- Cyber cafe: customers at **PC** or **PlayStation** stations scan a QR, order snacks/drinks, pay, staff delivers to the station.
+- Stations: `pc` | `ps` + integer number. URLs were `/order/{pc|ps}/{n}`.
+- Admin: incoming orders, menu CRUD, printable/downloadable QR codes (`/admin`, `/admin/menu`, `/admin/qr`).
+- Brand: dark zinc UI, amber accents, Geist fonts, title “Cyber Cafe Food Ordering”.
+
+## Domain (prices in **paise**, display INR via `en-IN`)
+- MenuItem: id, name, description, price, category, emoji, isAvailable.
+- Order: station, status, line items (menuItemId, name, qty, unitPrice), totalAmount, paymentMethod (`cash` | `upi` | `bank`), optional customerNote, timestamps.
+- Status: `PENDING_PAYMENT` → `PAID` → `PREPARING` → `READY` → `DELIVERED`, or `CANCELLED`.
+- Do **not** use Razorpay. It was removed. Prefer cash / pay on delivery unless a new provider is chosen later.
+
+## What existed (frontend demo)
+- Customer: menu grid, cart sheet, checkout dialog, success page.
+- Admin: order board/cards with status transitions, menu manager, QR generator (`qrcode` → `/order/pc|ps/{n}`).
+- State was **localStorage** (`cafe-menu`, `cafe-orders`) + custom event, not the database yet.
+- shadcn (base-nova) + `@base-ui/react`, CVA, lucide.
+
+## Payments
+- Razorpay (keys, Checkout, `/api/razorpay/*`) was fully removed. Do not reinstall it or restore those routes.
+- Amounts in paise, currency INR.
+
+## Data / Prisma (started, unused by UI)
+- Prisma 7: `prisma.config.ts`, `provider = "postgresql"`, generator `prisma-client` output `../lib/generated/prisma`.
+- `npx prisma init` was run; schema had no models yet. Prefer Postgres when adding persistence.
+
+## Stack notes
+- Next.js 16 App Router (`LayoutProps<"/">`, async `params`). `next-auth` was installed but unused.
+- Do not restore localStorage as the long-term store; next build should persist with Prisma.
