@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     MenuItem[]
+}
+
+model MenuItem {
+  id          String      @id @default(cuid())
+  name        String
+  description String      @default("")
+  /// Price in paise (INR * 100)
+  price       Int
+  emoji       String      @default("")
+  isAvailable Boolean     @default(true)
+  categoryId  String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  category    Category    @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+
+  @@index([categoryId])
+  @@index([isAvailable])
+}
+
+/// Physical PC / PlayStation seat customers order from (QR target).
+model Station {
+  id        String      @id @default(cuid())
+  type      StationType
+  number    Int
+  /// Display label, e.g. "PC-12"
+  name      String
+  /// Opaque token for QR URLs so guests cannot spoof another station by editing the path.
+  qrToken   String      @unique @default(cuid())
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  orders    Order[]
+
+  @@unique([type, number])
+}
+
+model Order {
+  id            String         @id @default(cuid())
+  orderNumber   Int            @unique @default(autoincrement())
+  stationId     String
+  status        OrderStatus    @default(PENDING_PAYMENT)
+  paymentMethod PaymentMethod?
+  /// Total in paise
+  totalAmount   Int
+  customerNote  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  station       Station        @relation(fields: [stationId], references: [id])
+  items         OrderItem[]
+
+  @@index([stationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id         String    @id @default(cuid())
+  orderId    String
+  menuItemId String?
+  /// Snapshot at order time (menu can change later)
+  name       String
+  /// Unit price in paise at order time
+  unitPrice  Int
+  quantity   Int
+  createdAt  DateTime  @default(now())
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id])
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+enum StationType {
+  pc
+  ps
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  cash
+  upi
+  bank
+}

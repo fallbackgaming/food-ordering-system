@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-canvas: #ffffff;
+  --color-ink: #111111;
+  --color-accent: #1ecad3;
+}
+
 html,
 body {
   height: 100%;
@@ -7,4 +13,21 @@ body {
 
 body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+@keyframes cart-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: cart-rise 220ms ease-out;
 }

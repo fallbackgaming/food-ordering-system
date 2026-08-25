@@ -11,7 +11,7 @@ This repo was reset to a homepage only. Rebuild from this, do not invent a diffe
 - Cyber cafe: customers at **PC** or **PlayStation** stations scan a QR, order snacks/drinks, pay, staff delivers to the station.
 - Stations: `pc` | `ps` + integer number. URLs were `/order/{pc|ps}/{n}`.
 - Admin: incoming orders, menu CRUD, printable/downloadable QR codes (`/admin`, `/admin/menu`, `/admin/qr`).
-- Brand: dark zinc UI, amber accents, Geist fonts, title “Cyber Cafe Food Ordering”.
+- Brand: 60% white (`canvas`), 30% black (`ink`), 10% turquoise (`accent` `#1ecad3`). Geist fonts. Title “Cyber Cafe Food Ordering”.
 
 ## Domain (prices in **paise**, display INR via `en-IN`)
 - MenuItem: id, name, description, price, category, emoji, isAvailable.
