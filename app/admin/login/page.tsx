@@ -39,42 +39,47 @@ function LoginForm() {
   }
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-6 py-16">
-      <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">
+    <main className="menu-hero mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-6 py-16 text-canvas">
+      <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-accent">
         Admin access
       </p>
-      <h1 className="mt-2 text-3xl font-bold tracking-tight">Sign in</h1>
-      <p className="mt-2 text-sm text-ink/60">
-        Monitor orders and manage the menu.
+      <h1 className="brand-mark mt-3 text-[2.35rem] leading-none">
+        <span className="block">Fallback</span>
+        <span className="brand-mark-accent mt-1 block text-[1.75rem]">
+          Gaming Cafe
+        </span>
+      </h1>
+      <p className="mt-4 text-sm text-canvas/55">
+        Sign in to monitor orders and manage the menu.
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <label className="block">
-          <span className="text-sm font-medium">Username</span>
+          <span className="text-sm font-medium text-canvas/80">Username</span>
           <input
             name="username"
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-ink/15 bg-canvas px-3 py-2.5 outline-none ring-accent focus:ring-2"
+            className="field-input-dark mt-1.5"
             required
           />
         </label>
         <label className="block">
-          <span className="text-sm font-medium">Password</span>
+          <span className="text-sm font-medium text-canvas/80">Password</span>
           <input
             name="password"
             type="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-ink/15 bg-canvas px-3 py-2.5 outline-none ring-accent focus:ring-2"
+            className="field-input-dark mt-1.5"
             required
           />
         </label>
 
         {error ? (
-          <p className="text-sm font-medium text-red-600" role="alert">
+          <p className="text-sm font-medium text-red-400" role="alert">
             {error}
           </p>
         ) : null}
@@ -82,7 +87,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-ink py-3 text-sm font-semibold text-canvas transition hover:bg-ink/90 disabled:opacity-50"
+          className="w-full rounded-xl bg-accent py-3 text-sm font-semibold text-ink transition hover:brightness-95 disabled:opacity-50"
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>
@@ -96,7 +101,7 @@ export default function AdminLoginPage() {
     <Suspense
       fallback={
         <main className="mx-auto flex min-h-full max-w-md items-center justify-center px-6">
-          <p className="text-sm text-ink/50">Loading…</p>
+          <p className="text-sm text-canvas/50">Loading…</p>
         </main>
       }
     >

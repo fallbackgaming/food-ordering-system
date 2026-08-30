@@ -64,6 +64,8 @@ model Order {
   id            String         @id @default(cuid())
   orderNumber   Int            @unique @default(autoincrement())
   stationId     String
+  /// Customer name collected at checkout
+  customerName  String         @default("")
   status        OrderStatus    @default(PENDING_PAYMENT)
   paymentMethod PaymentMethod?
   /// Total in paise

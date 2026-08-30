@@ -78,7 +78,8 @@ export function OrderMenu({
   }
 
   async function placeOrder(
-    method: Extract<PaymentMethod, "cash" | "upi">
+    method: Extract<PaymentMethod, "cash" | "upi">,
+    customerName: string
   ) {
     const res = await fetch("/api/orders", {
       method: "POST",
@@ -86,6 +87,7 @@ export function OrderMenu({
       body: JSON.stringify({
         stationType,
         stationNumber,
+        customerName,
         paymentMethod: method,
         items: checkoutLines.map((line) => ({
           menuItemId: line.menuItemId,

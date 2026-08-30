@@ -2,6 +2,7 @@
 
 import { formatPrice } from "@/lib/format";
 import type { CartLine, PaymentMethod } from "@/lib/types";
+import { FoodLoader } from "@/components/ui/food-loader";
 import Image from "next/image";
 import { useEffect, useId, useState } from "react";
 
@@ -13,7 +14,8 @@ type CheckoutDialogProps = {
   stationLabel: string;
   onClose: () => void;
   onPlaceOrder: (
-    method: Extract<PaymentMethod, "cash" | "upi">
+    method: Extract<PaymentMethod, "cash" | "upi">,
+    customerName: string
   ) => Promise<void>;
 };
 
@@ -27,6 +29,7 @@ export function CheckoutDialog({
   const titleId = useId();
   const [step, setStep] = useState<CheckoutStep>("method");
   const [method, setMethod] = useState<"cash" | "upi" | null>(null);
+  const [customerName, setCustomerName] = useState("");
   const [placedMethod, setPlacedMethod] = useState<"cash" | "upi" | null>(
     null
   );
@@ -38,11 +41,13 @@ export function CheckoutDialog({
     (sum, line) => sum + line.unitPrice * line.quantity,
     0
   );
+  const nameOk = customerName.trim().length > 0;
 
   useEffect(() => {
     if (!open) return;
     setStep("method");
     setMethod(null);
+    setCustomerName("");
     setPlacedMethod(null);
     setPlacing(false);
     setError(null);
@@ -60,10 +65,15 @@ export function CheckoutDialog({
   if (!open) return null;
 
   async function placeOrder(selected: "cash" | "upi") {
+    if (!customerName.trim()) {
+      setError("Please enter your name");
+      setStep("method");
+      return;
+    }
     setPlacing(true);
     setError(null);
     try {
-      await onPlaceOrder(selected);
+      await onPlaceOrder(selected, customerName.trim());
       setPlacedMethod(selected);
       setStep("success");
     } catch (err) {
@@ -75,6 +85,10 @@ export function CheckoutDialog({
 
   function continueFromMethod() {
     if (!method) return;
+    if (!nameOk) {
+      setError("Please enter your name");
+      return;
+    }
     if (method === "cash") {
       void placeOrder("cash");
       return;
@@ -87,7 +101,7 @@ export function CheckoutDialog({
       <button
         type="button"
         aria-label="Close checkout"
-        className="absolute inset-0 bg-ink/45"
+        className="absolute inset-0 bg-ink/60 backdrop-blur-[3px]"
         onClick={() => {
           if (step !== "success") onClose();
         }}
@@ -97,27 +111,86 @@ export function CheckoutDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-ink/10 bg-canvas shadow-2xl animate-in sm:rounded-2xl"
+        className="relative z-10 flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-t-[1.5rem] border border-ink/10 bg-canvas text-ink shadow-2xl animate-in sm:rounded-[1.5rem]"
       >
+        {placing ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/90 backdrop-blur-sm">
+            <FoodLoader
+              fullScreen={false}
+              label="Sending your order to the kitchen…"
+            />
+          </div>
+        ) : null}
+
+        {step !== "success" ? (
+          <div className="flex items-center gap-2 border-b border-ink/8 px-5 py-3">
+            <StepDot active={step === "method"} label="1" />
+            <div className="h-px flex-1 bg-ink/10" />
+            <StepDot active={step === "upi" || method === "upi"} label="2" />
+          </div>
+        ) : null}
+
         {step === "method" && (
           <>
-            <div className="border-b border-ink/10 px-5 py-4">
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-accent">
+            <div className="px-5 py-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent">
                 Checkout · {stationLabel}
               </p>
-              <h2 id={titleId} className="mt-1 text-xl font-bold tracking-tight">
-                How will you pay?
+              <h2
+                id={titleId}
+                className="mt-1 text-2xl font-bold tracking-tight"
+              >
+                Your details
               </h2>
               <p className="mt-1 text-sm text-ink/55">
-                {itemCount} item{itemCount === 1 ? "" : "s"} · {formatPrice(total)}
+                {itemCount} item{itemCount === 1 ? "" : "s"} ·{" "}
+                {formatPrice(total)}
               </p>
             </div>
 
-            <div className="space-y-2 overflow-y-auto px-4 py-4">
+            <div className="space-y-3 overflow-y-auto px-4 pb-2">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium">
+                  Your name <span className="text-red-500">*</span>
+                </span>
+                <input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="e.g. Rahul"
+                  className="field-input"
+                  autoComplete="name"
+                  required
+                />
+              </label>
+
+              <div className="rounded-2xl border border-ink/8 bg-panel px-3 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink/40">
+                  Order summary
+                </p>
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  {lines.map((line) => (
+                    <li
+                      key={line.menuItemId}
+                      className="flex justify-between gap-3 text-ink/70"
+                    >
+                      <span className="truncate">
+                        {line.quantity}× {line.name}
+                      </span>
+                      <span className="tabular-nums">
+                        {formatPrice(line.unitPrice * line.quantity)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <p className="pt-1 text-sm font-medium text-ink/70">
+                How will you pay?
+              </p>
               <PaymentOption
                 selected={method === "cash"}
-                title="Cash"
-                description="Pay when staff delivers to your station"
+                title="Cash on delivery"
+                description="Pay when staff arrives at your station"
                 onSelect={() => setMethod("cash")}
               />
               <PaymentOption
@@ -129,24 +202,27 @@ export function CheckoutDialog({
             </div>
 
             {error ? (
-              <p className="px-4 pb-2 text-sm font-medium text-red-600" role="alert">
+              <p
+                className="px-4 pb-2 text-sm font-medium text-red-600"
+                role="alert"
+              >
                 {error}
               </p>
             ) : null}
 
-            <div className="flex gap-2 border-t border-ink/10 p-4">
+            <div className="flex gap-2 border-t border-ink/8 p-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 rounded-xl border border-ink/15 py-3 text-sm font-medium transition hover:bg-ink/5"
+                className="flex-1 rounded-2xl border border-ink/12 py-3 text-sm font-medium transition hover:bg-panel"
               >
                 Back
               </button>
               <button
                 type="button"
-                disabled={!method || placing}
+                disabled={!method || !nameOk || placing}
                 onClick={continueFromMethod}
-                className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex-1 rounded-2xl bg-accent py-3 text-sm font-semibold text-ink transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {placing
                   ? "Placing…"
@@ -160,11 +236,14 @@ export function CheckoutDialog({
 
         {step === "upi" && (
           <>
-            <div className="border-b border-ink/10 px-5 py-4">
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-accent">
-                UPI payment
+            <div className="px-5 py-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent">
+                UPI payment · {customerName.trim()}
               </p>
-              <h2 id={titleId} className="mt-1 text-xl font-bold tracking-tight">
+              <h2
+                id={titleId}
+                className="mt-1 text-2xl font-bold tracking-tight"
+              >
                 Scan to pay {formatPrice(total)}
               </h2>
               <p className="mt-1 text-sm text-ink/55">
@@ -172,34 +251,37 @@ export function CheckoutDialog({
               </p>
             </div>
 
-            <div className="overflow-y-auto px-5 py-5">
-              <div className="overflow-hidden rounded-xl border border-ink/10 bg-white">
+            <div className="overflow-y-auto px-5 pb-2">
+              <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-sm">
                 <Image
                   src="/payment_qr.png"
-                  alt="UPI payment QR code for Ishan Kadam"
+                  alt="UPI payment QR code"
                   width={720}
                   height={900}
                   className="h-auto w-full"
                   priority
                 />
               </div>
-              <p className="mt-3 text-center text-sm text-ink/60">
+              <p className="mt-3 text-center text-sm text-ink/55">
                 After paying, confirm below to place your order.
               </p>
             </div>
 
             {error ? (
-              <p className="px-4 pb-2 text-sm font-medium text-red-600" role="alert">
+              <p
+                className="px-4 pb-2 text-sm font-medium text-red-600"
+                role="alert"
+              >
                 {error}
               </p>
             ) : null}
 
-            <div className="flex gap-2 border-t border-ink/10 p-4">
+            <div className="flex gap-2 border-t border-ink/8 p-4">
               <button
                 type="button"
                 onClick={() => setStep("method")}
                 disabled={placing}
-                className="flex-1 rounded-xl border border-ink/15 py-3 text-sm font-medium transition hover:bg-ink/5"
+                className="flex-1 rounded-2xl border border-ink/12 py-3 text-sm font-medium transition hover:bg-panel"
               >
                 Back
               </button>
@@ -207,7 +289,7 @@ export function CheckoutDialog({
                 type="button"
                 disabled={placing}
                 onClick={() => void placeOrder("upi")}
-                className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink transition hover:brightness-95 disabled:opacity-40"
+                className="flex-1 rounded-2xl bg-accent py-3 text-sm font-semibold text-ink transition hover:brightness-95 disabled:opacity-40"
               >
                 {placing ? "Placing…" : "I've paid · Place order"}
               </button>
@@ -216,15 +298,22 @@ export function CheckoutDialog({
         )}
 
         {step === "success" && (
-          <div className="px-5 py-8 text-center">
-            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-accent/25 text-2xl font-bold text-ink">
+          <div className="px-5 py-10 text-center">
+            <div className="animate-check mx-auto flex size-16 items-center justify-center rounded-full bg-accent text-2xl font-bold text-ink">
               ✓
             </div>
-            <h2 id={titleId} className="mt-4 text-2xl font-bold tracking-tight">
+            <h2
+              id={titleId}
+              className="mt-5 text-2xl font-bold tracking-tight"
+            >
               Order placed
             </h2>
-            <p className="mt-2 text-sm text-ink/60">
-              We&apos;ll bring it to{" "}
+            <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-ink/60">
+              Thanks,{" "}
+              <span className="font-semibold text-ink">
+                {customerName.trim()}
+              </span>
+              . We&apos;ll bring it to{" "}
               <span className="font-semibold text-ink">{stationLabel}</span>
               {placedMethod === "cash"
                 ? ". Pay cash on delivery."
@@ -233,7 +322,7 @@ export function CheckoutDialog({
             <button
               type="button"
               onClick={onClose}
-              className="mt-6 w-full rounded-xl bg-ink py-3 text-sm font-semibold text-canvas transition hover:bg-ink/90"
+              className="mt-7 w-full rounded-2xl bg-ink py-3.5 text-sm font-semibold text-canvas transition hover:bg-ink/90"
             >
               Back to menu
             </button>
@@ -241,6 +330,18 @@ export function CheckoutDialog({
         )}
       </div>
     </div>
+  );
+}
+
+function StepDot({ active, label }: { active: boolean; label: string }) {
+  return (
+    <span
+      className={`flex size-7 items-center justify-center rounded-full text-xs font-semibold ${
+        active ? "bg-accent text-ink" : "bg-panel text-ink/40"
+      }`}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -259,10 +360,10 @@ function PaymentOption({
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full rounded-xl border px-4 py-3.5 text-left transition ${
+      className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
         selected
           ? "border-accent bg-accent/10 ring-1 ring-accent"
-          : "border-ink/10 hover:border-ink/25"
+          : "border-ink/10 hover:border-ink/20 hover:bg-panel/80"
       }`}
     >
       <div className="flex items-center justify-between gap-3">
@@ -271,14 +372,14 @@ function PaymentOption({
           <p className="mt-0.5 text-sm text-ink/55">{description}</p>
         </div>
         <span
-          className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${
+          className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${
             selected
-              ? "border-accent bg-accent text-[10px] font-bold text-ink"
-              : "border-ink/25"
+              ? "border-accent bg-accent text-ink"
+              : "border-ink/20 text-transparent"
           }`}
           aria-hidden
         >
-          {selected ? "✓" : ""}
+          ✓
         </span>
       </div>
     </button>

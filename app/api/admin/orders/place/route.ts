@@ -1,8 +1,9 @@
+import { requireAdminSession } from "@/lib/auth";
 import { placeOrder } from "@/lib/orders";
 import type { PaymentMethod, StationType } from "@/lib/generated/prisma/client";
 import { NextResponse } from "next/server";
 
-type OrderBody = {
+type AdminOrderBody = {
   stationType?: string;
   stationNumber?: number;
   customerName?: string;
@@ -15,7 +16,13 @@ type OrderBody = {
 };
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as OrderBody;
+  try {
+    await requireAdminSession();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = (await request.json()) as AdminOrderBody;
 
   const result = await placeOrder({
     stationType: (body.stationType?.toLowerCase() ?? "") as StationType,
@@ -24,6 +31,7 @@ export async function POST(request: Request) {
     paymentMethod: body.paymentMethod as Extract<PaymentMethod, "cash" | "upi">,
     customerNote: body.customerNote,
     items: body.items ?? [],
+    placedByAdmin: true,
   });
 
   if (!result.ok) {

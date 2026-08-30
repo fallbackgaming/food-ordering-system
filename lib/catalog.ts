@@ -10,6 +10,13 @@ export async function ensureStation(type: StationType, number: number) {
   });
 }
 
+export async function getStationLabel(type: StationType, number: number) {
+  const station = await prisma.station.findUnique({
+    where: { type_number: { type, number } },
+  });
+  return station?.name ?? `${type.toUpperCase()}-${number}`;
+}
+
 export async function listMenuForCustomer() {
   const items = await prisma.menuItem.findMany({
     include: { category: true },

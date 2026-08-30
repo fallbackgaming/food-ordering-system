@@ -1,43 +1,48 @@
-import { MenuManager } from "@/components/admin/menu-manager";
+import { AdminPlaceOrderForm } from "@/components/admin/place-order-form";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminMenuPage() {
-  const [items, categories] = await Promise.all([
+export default async function AdminPlaceOrderPage() {
+  const [stations, menuItems] = await Promise.all([
+    prisma.station.findMany({
+      where: { isActive: true },
+      orderBy: [{ type: "asc" }, { number: "asc" }],
+    }),
     prisma.menuItem.findMany({
       include: { category: true },
       orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
     }),
-    prisma.category.findMany({ orderBy: { sortOrder: "asc" } }),
   ]);
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-6">
         <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-accent">
-          Catalog
+          Desk
         </p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-canvas">
-          Menu
+          Place order
         </h1>
         <p className="mt-1 text-sm text-canvas/50">
-          Manage catalog items with a form, then control availability in the
-          table.
+          Create an order for a customer at a station — name required.
         </p>
       </div>
-      <MenuManager
-        initialItems={items.map((item) => ({
+      <AdminPlaceOrderForm
+        stations={stations.map((s) => ({
+          id: s.id,
+          type: s.type,
+          number: s.number,
+          name: s.name,
+        }))}
+        menuItems={menuItems.map((item) => ({
           id: item.id,
           name: item.name,
-          description: item.description,
           price: item.price,
           emoji: item.emoji,
-          isAvailable: item.isAvailable,
-          categoryId: item.categoryId,
           categoryName: item.category.name,
+          isAvailable: item.isAvailable,
         }))}
-        categories={categories.map((c) => ({ id: c.id, name: c.name }))}
       />
     </div>
   );
