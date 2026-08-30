@@ -10,8 +10,9 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
+  // Prefer pooled DATABASE_URL on Vercel; DIRECT_URL is for Prisma CLI/migrations.
   const connectionString =
-    process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+    process.env.DATABASE_URL ?? process.env.DIRECT_URL;
 
   if (!connectionString) {
     throw new Error("DATABASE_URL (or DIRECT_URL) is not set");

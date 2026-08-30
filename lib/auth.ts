@@ -1,11 +1,24 @@
 import { hash, compare } from "bcryptjs";
-import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import type { AdminRole } from "@/lib/generated/prisma/client";
+import {
+  ADMIN_SESSION_COOKIE,
+  createAdminToken,
+  verifyAdminToken,
+  sessionCookieOptions,
+  clearSessionCookieOptions,
+  getAuthSecret,
+} from "@/lib/auth-token";
 
-export const ADMIN_SESSION_COOKIE = "cafe_admin_session";
-const SESSION_TTL_SECONDS = 60 * 60 * 18; // 18 hours
+export {
+  ADMIN_SESSION_COOKIE,
+  createAdminToken,
+  verifyAdminToken,
+  sessionCookieOptions,
+  clearSessionCookieOptions,
+} from "@/lib/auth-token";
+
 const BCRYPT_ROUNDS = 10;
 
 export type AdminSession = {
@@ -14,12 +27,13 @@ export type AdminSession = {
   role: AdminRole;
 };
 
-function getSecretKey() {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 16) {
-    throw new Error("AUTH_SECRET must be set (min 16 characters)");
+export function assertAuthConfigured() {
+  getAuthSecret();
+  if (!process.env.DATABASE_URL && !process.env.DIRECT_URL) {
+    throw new Error(
+      "DATABASE_URL (or DIRECT_URL) must be set in Vercel environment variables"
+    );
   }
-  return new TextEncoder().encode(secret);
 }
 
 export function getEnvAdminCredentials() {
@@ -42,14 +56,9 @@ export async function verifyPassword(password: string, stored: string) {
   if (looksLikeBcryptHash(stored)) {
     return compare(password, stored);
   }
-  // Legacy plaintext row — accept once, caller should re-hash
   return timingSafeEqualString(password, stored);
 }
 
-/**
- * Ensures env ADMIN_* exists in DB as an active SUPER_ADMIN.
- * Keeps the stored password hash in sync with ADMIN_PASSWORD on Vercel/local.
- */
 export async function ensureBootstrapSuperAdmin() {
   const creds = getEnvAdminCredentials();
   if (!creds) return null;
@@ -88,9 +97,10 @@ export async function ensureBootstrapSuperAdmin() {
     data: {
       role: "SUPER_ADMIN",
       isActive: true,
-      password: passwordMatches && looksLikeBcryptHash(existing.password)
-        ? undefined
-        : await hashPassword(creds.password),
+      password:
+        passwordMatches && looksLikeBcryptHash(existing.password)
+          ? undefined
+          : await hashPassword(creds.password),
     },
   });
 }
@@ -107,6 +117,7 @@ export async function authenticateAdmin(
     return { ok: false, error: "Username and password required", status: 400 };
   }
 
+  assertAuthConfigured();
   await ensureBootstrapSuperAdmin();
 
   const user = await prisma.user.findUnique({
@@ -119,7 +130,6 @@ export async function authenticateAdmin(
 
   let passwordOk = await verifyPassword(password, user.password);
 
-  // Bootstrap account: always accept current env ADMIN_PASSWORD and re-hash
   const creds = getEnvAdminCredentials();
   if (
     !passwordOk &&
@@ -134,7 +144,6 @@ export async function authenticateAdmin(
     return { ok: false, error: "Invalid username or password", status: 401 };
   }
 
-  // Upgrade plaintext / drift env password to a fresh bcrypt hash
   if (
     !looksLikeBcryptHash(user.password) ||
     (creds &&
@@ -173,60 +182,31 @@ export async function authenticateAdmin(
   };
 }
 
-export async function createAdminToken(session: {
-  userId: string;
-  username: string;
-  role: AdminRole;
-}): Promise<string> {
-  return new SignJWT({
-    userId: session.userId,
-    username: session.username,
-    role: session.role,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject("admin")
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
-    .sign(getSecretKey());
-}
-
-export async function verifyAdminToken(
-  token: string
-): Promise<AdminSession | null> {
+export async function getAdminSession(): Promise<AdminSession | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecretKey());
-    const userId = payload.userId;
-    const username = payload.username;
-    const role = payload.role;
-    if (typeof userId !== "string" || !userId) return null;
-    if (typeof username !== "string" || !username) return null;
-    if (role !== "SUPER_ADMIN" && role !== "ADMIN") return null;
-    return { userId, username, role };
-  } catch {
+    const jar = await cookies();
+    const token = jar.get(ADMIN_SESSION_COOKIE)?.value;
+    if (!token) return null;
+
+    const session = await verifyAdminToken(token);
+    if (!session) return null;
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { id: true, username: true, role: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) return null;
+
+    return {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+    };
+  } catch (error) {
+    console.error("getAdminSession failed", error);
     return null;
   }
-}
-
-export async function getAdminSession(): Promise<AdminSession | null> {
-  const jar = await cookies();
-  const token = jar.get(ADMIN_SESSION_COOKIE)?.value;
-  if (!token) return null;
-
-  const session = await verifyAdminToken(token);
-  if (!session) return null;
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { id: true, username: true, role: true, isActive: true },
-  });
-
-  if (!user || !user.isActive) return null;
-
-  return {
-    userId: user.id,
-    username: user.username,
-    role: user.role,
-  };
 }
 
 export async function requireAdminSession(): Promise<AdminSession> {
@@ -243,36 +223,6 @@ export async function requireSuperAdminSession(): Promise<AdminSession> {
     throw new Error("FORBIDDEN");
   }
   return session;
-}
-
-function isProductionHttps() {
-  return (
-    process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL)
-  );
-}
-
-export function sessionCookieOptions(token: string) {
-  return {
-    name: ADMIN_SESSION_COOKIE,
-    value: token,
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: isProductionHttps(),
-    path: "/",
-    maxAge: SESSION_TTL_SECONDS,
-  };
-}
-
-export function clearSessionCookieOptions() {
-  return {
-    name: ADMIN_SESSION_COOKIE,
-    value: "",
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: isProductionHttps(),
-    path: "/",
-    maxAge: 0,
-  };
 }
 
 export function timingSafeEqualString(a: string, b: string): boolean {

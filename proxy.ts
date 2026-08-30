@@ -1,7 +1,7 @@
 import {
   ADMIN_SESSION_COOKIE,
   verifyAdminToken,
-} from "@/lib/auth";
+} from "@/lib/auth-token";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 

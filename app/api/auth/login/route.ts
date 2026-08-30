@@ -1,4 +1,5 @@
 import {
+  ADMIN_SESSION_COOKIE,
   authenticateAdmin,
   clearSessionCookieOptions,
   createAdminToken,
@@ -39,16 +40,16 @@ export async function POST(request: Request) {
       role: result.user.role,
     });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: "Login is not configured" },
-      { status: 500 }
-    );
+    console.error("Login error:", error);
+    const message =
+      error instanceof Error ? error.message : "Login is not configured";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function DELETE() {
   const jar = await cookies();
+  jar.delete(ADMIN_SESSION_COOKIE);
   jar.set(clearSessionCookieOptions());
   return NextResponse.json({ ok: true });
 }

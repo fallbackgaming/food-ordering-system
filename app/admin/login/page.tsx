@@ -1,42 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useState } from "react";
+import { useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
 
-function LoginForm() {
+export default function AdminLoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/admin";
-
+  const [nextPath, setNextPath] = useState("/admin");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    if (next?.startsWith("/admin")) setNextPath(next);
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
-    setLoading(false);
-
-    if (!res.ok) {
       const data = (await res.json().catch(() => null)) as {
         error?: string;
       } | null;
-      setError(data?.error ?? "Login failed");
-      return;
-    }
 
-    router.replace(next.startsWith("/admin") ? next : "/admin");
-    router.refresh();
+      if (!res.ok) {
+        setError(data?.error ?? "Login failed");
+        setLoading(false);
+        return;
+      }
+
+      window.location.assign(nextPath);
+    } catch {
+      setError("Could not reach the server");
+      setLoading(false);
+    }
   }
 
   return (
@@ -104,19 +112,5 @@ function LoginForm() {
         </Link>
       </p>
     </main>
-  );
-}
-
-export default function AdminLoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <main className="mx-auto flex min-h-full max-w-md items-center justify-center px-6">
-          <p className="text-sm text-canvas/50">Loading…</p>
-        </main>
-      }
-    >
-      <LoginForm />
-    </Suspense>
   );
 }

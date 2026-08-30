@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type AdminLogoutButtonProps = {
@@ -8,14 +7,17 @@ type AdminLogoutButtonProps = {
 };
 
 export function AdminLogoutButton({ dark }: AdminLogoutButtonProps) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function logout() {
     setLoading(true);
-    await fetch("/api/auth/login", { method: "DELETE" });
-    router.replace("/admin/login");
-    router.refresh();
+    try {
+      await fetch("/api/auth/login", { method: "DELETE" });
+    } catch {
+      // Still leave the admin area even if the request fails
+    }
+    // Hard navigation avoids RSC refresh of a protected page after cookie clear
+    window.location.assign("/admin/login");
   }
 
   return (
