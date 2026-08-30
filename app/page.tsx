@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export default function HomePage() {
   return (
     <main className="relative flex min-h-full overflow-hidden bg-ink text-canvas">
@@ -19,26 +17,7 @@ export default function HomePage() {
           Scan a QR at your PC or PlayStation, order snacks and drinks, and we
           deliver to your station.
         </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/order/pc/1"
-            className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-ink transition hover:brightness-95"
-          >
-            Open PC 1 menu
-          </Link>
-          <Link
-            href="/order/ps/1"
-            className="rounded-2xl border border-canvas/20 bg-canvas/5 px-5 py-3 text-sm font-semibold text-canvas transition hover:border-canvas/40"
-          >
-            Open PS 1 menu
-          </Link>
-          <Link
-            href="/admin"
-            className="rounded-2xl border border-accent/40 px-5 py-3 text-sm font-semibold text-accent transition hover:bg-accent/10"
-          >
-            Admin
-          </Link>
-        </div>
+        <div className="mt-8 flex flex-wrap gap-3"></div>
       </div>
     </main>
   );
