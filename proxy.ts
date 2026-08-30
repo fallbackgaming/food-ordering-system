@@ -5,10 +5,12 @@ import {
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const PUBLIC_ADMIN_PATHS = new Set(["/admin/login", "/admin/signup"]);
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/admin/login") {
+  if (PUBLIC_ADMIN_PATHS.has(pathname)) {
     const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
     if (token && (await verifyAdminToken(token))) {
       return NextResponse.redirect(new URL("/admin", request.url));

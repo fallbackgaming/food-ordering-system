@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { AdminLogoutButton } from "@/components/admin/logout-button";
 import { FoodLoader } from "@/components/ui/food-loader";
 
-const NAV = [
+const BASE_NAV = [
   { href: "/admin", label: "Orders", match: (path: string) => path === "/admin" },
   {
     href: "/admin/place-order",
@@ -25,9 +25,25 @@ const NAV = [
   },
 ] as const;
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+const STAFF_NAV = {
+  href: "/admin/staff",
+  label: "Staff",
+  match: (path: string) => path.startsWith("/admin/staff"),
+} as const;
+
+type AdminShellProps = {
+  children: React.ReactNode;
+  isSuperAdmin?: boolean;
+};
+
+export function AdminShell({
+  children,
+  isSuperAdmin = false,
+}: AdminShellProps) {
   const pathname = usePathname();
   const [navigating, setNavigating] = useState(false);
+
+  const nav = isSuperAdmin ? [...BASE_NAV, STAFF_NAV] : [...BASE_NAV];
 
   useEffect(() => {
     setNavigating(false);
@@ -48,10 +64,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <p className="brand-mark-accent mt-1 text-lg leading-none">
             Gaming Cafe
           </p>
-          <p className="mt-2 text-xs text-canvas/45">Admin dashboard</p>
+          <p className="mt-2 text-xs text-canvas/45">
+            {isSuperAdmin ? "Super admin" : "Admin dashboard"}
+          </p>
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const active = item.match(pathname);
             return (
               <Link
@@ -84,7 +102,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <p className="font-semibold">Admin</p>
             </div>
             <nav className="flex min-w-0 gap-1 overflow-x-auto md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {NAV.map((item) => {
+              {nav.map((item) => {
                 const active = item.match(pathname);
                 return (
                   <Link

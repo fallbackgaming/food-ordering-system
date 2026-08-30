@@ -1,8 +1,12 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/lib/generated/prisma/client";
 
+/** Bump when User/auth schema fields change so the hot-reload singleton is replaced. */
+const PRISMA_SCHEMA_VERSION = "user-role-isActive-v1";
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaSchemaVersion?: string;
 };
 
 function createPrismaClient() {
@@ -15,6 +19,11 @@ function createPrismaClient() {
 
   const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
+}
+
+if (globalForPrisma.prismaSchemaVersion !== PRISMA_SCHEMA_VERSION) {
+  globalForPrisma.prisma = undefined;
+  globalForPrisma.prismaSchemaVersion = PRISMA_SCHEMA_VERSION;
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

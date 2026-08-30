@@ -8,11 +8,20 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
+  id        String    @id @default(cuid())
+  username  String    @unique
+  /// bcrypt hash
   password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      AdminRole @default(ADMIN)
+  /// Super admin must activate before the account can sign in
+  isActive  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
 }
 
 model Category {

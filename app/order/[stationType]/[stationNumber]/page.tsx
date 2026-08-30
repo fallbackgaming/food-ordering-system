@@ -1,4 +1,5 @@
 import { OrderMenu } from "@/components/client/order-menu";
+import { StaffLoginLink } from "@/components/staff-login-link";
 import { getStationLabel, listMenuForCustomer } from "@/lib/catalog";
 import type { StationType } from "@/lib/types";
 import { notFound } from "next/navigation";
@@ -34,6 +35,9 @@ export default async function OrderPage({ params }: OrderPageProps) {
     <div className="flex min-h-full flex-col overflow-x-hidden bg-ink text-canvas">
       <header className="menu-hero relative z-10 px-4 pb-10 pt-7 text-canvas">
         <div className="mx-auto w-full max-w-2xl lg:max-w-4xl">
+          <div className="mb-5 flex justify-end">
+            <StaffLoginLink />
+          </div>
           <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
             <div className="animate-fade-up min-w-0 flex-1">
               <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-accent">

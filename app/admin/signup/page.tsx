@@ -1,57 +1,68 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
-function LoginForm() {
+export default function AdminSignupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/admin";
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setSuccess(null);
 
-    const res = await fetch("/api/auth/login", {
+    if (password !== confirm) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setLoading(true);
+    const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
-
     setLoading(false);
 
+    const data = (await res.json().catch(() => null)) as {
+      error?: string;
+      message?: string;
+    } | null;
+
     if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      setError(data?.error ?? "Login failed");
+      setError(data?.error ?? "Could not create account");
       return;
     }
 
-    router.replace(next.startsWith("/admin") ? next : "/admin");
-    router.refresh();
+    setSuccess(
+      data?.message ??
+        "Account created. Wait for a super admin to activate you."
+    );
+    setUsername("");
+    setPassword("");
+    setConfirm("");
   }
 
   return (
     <main className="menu-hero mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-6 py-16 text-canvas">
       <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-accent">
-        Admin access
+        Staff signup
       </p>
       <h1 className="brand-mark mt-3 text-[2.35rem] leading-none">
-        <span className="block">Fallback</span>
+        <span className="block">Create</span>
         <span className="brand-mark-accent mt-1 block text-[1.75rem]">
-          Gaming Cafe
+          admin account
         </span>
       </h1>
       <p className="mt-4 text-sm text-canvas/55">
-        Sign in to monitor orders and manage the menu.
+        New accounts stay inactive until a super admin approves them.
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
@@ -63,6 +74,7 @@ function LoginForm() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="field-input-dark mt-1.5"
+            minLength={3}
             required
           />
         </label>
@@ -71,10 +83,26 @@ function LoginForm() {
           <input
             name="password"
             type="password"
-            autoComplete="current-password"
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="field-input-dark mt-1.5"
+            minLength={8}
+            required
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium text-canvas/80">
+            Confirm password
+          </span>
+          <input
+            name="confirm"
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            className="field-input-dark mt-1.5"
+            minLength={8}
             required
           />
         </label>
@@ -84,39 +112,37 @@ function LoginForm() {
             {error}
           </p>
         ) : null}
+        {success ? (
+          <p className="text-sm font-medium text-accent" role="status">
+            {success}{" "}
+            <button
+              type="button"
+              onClick={() => router.push("/admin/login")}
+              className="underline underline-offset-2"
+            >
+              Go to login
+            </button>
+          </p>
+        ) : null}
 
         <button
           type="submit"
           disabled={loading}
           className="w-full rounded-xl bg-accent py-3 text-sm font-semibold text-ink transition hover:brightness-95 disabled:opacity-50"
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? "Creating…" : "Sign up"}
         </button>
       </form>
 
       <p className="mt-6 text-center text-sm text-canvas/45">
-        Need an account?{" "}
+        Already have an account?{" "}
         <Link
-          href="/admin/signup"
+          href="/admin/login"
           className="font-medium text-accent hover:underline"
         >
-          Sign up
+          Sign in
         </Link>
       </p>
     </main>
-  );
-}
-
-export default function AdminLoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <main className="mx-auto flex min-h-full max-w-md items-center justify-center px-6">
-          <p className="text-sm text-canvas/50">Loading…</p>
-        </main>
-      }
-    >
-      <LoginForm />
-    </Suspense>
   );
 }
