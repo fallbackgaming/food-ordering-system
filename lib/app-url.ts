@@ -1,33 +1,19 @@
+/** Canonical public site used for QR codes (customer order links). */
+export const PRODUCTION_APP_URL =
+  "https://food-ordering-system-virid-omega.vercel.app";
+
 /**
- * Public site origin used for QR codes and absolute links.
- * Prefer NEXT_PUBLIC_APP_URL; on Vercel, VERCEL_URL is set automatically.
+ * Public site origin for QR codes and absolute links.
+ * Always prefers the production cafe URL so printed QRs stay stable.
  */
-export function getAppOriginFromEnv(): string | null {
+export function getAppOriginFromEnv(): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   if (configured) return configured;
 
-  const vercel = process.env.VERCEL_URL?.replace(/\/$/, "");
-  if (vercel) {
-    const host = vercel.startsWith("http") ? vercel : `https://${vercel}`;
-    return host.replace(/\/$/, "");
-  }
-
-  return null;
+  // Stable production host for QR stickers (ignore preview/deployment URLs)
+  return PRODUCTION_APP_URL;
 }
 
-export async function resolveAppOrigin(fallback = "http://localhost:3000") {
-  const fromEnv = getAppOriginFromEnv();
-  if (fromEnv) return fromEnv;
-
-  try {
-    const { headers } = await import("next/headers");
-    const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host");
-    const proto = h.get("x-forwarded-proto") ?? "http";
-    if (host) return `${proto}://${host}`;
-  } catch {
-    // headers() unavailable outside a request
-  }
-
-  return fallback;
+export async function resolveAppOrigin() {
+  return getAppOriginFromEnv();
 }
