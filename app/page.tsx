@@ -17,7 +17,7 @@ export default function HomePage() {
           Scan a QR at your PC or PlayStation, order snacks and drinks, and we
           deliver to your station.
         </p>
-        <div className="mt-8 flex flex-wrap gap-3"></div>
+        <div className="mt-8 flex flex-wrap gap-3"> </div>
       </div>
     </main>
   );
