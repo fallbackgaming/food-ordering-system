@@ -3,6 +3,10 @@
 import QRCode from "qrcode";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  composeStationWallpaper,
+  downloadDataUrl,
+} from "@/lib/station-wallpaper";
 
 type StationRow = {
   id: string;
@@ -38,6 +42,7 @@ export function QrManager({ initialStations, appOrigin }: QrManagerProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [wallpaperBusyId, setWallpaperBusyId] = useState<string | null>(null);
 
   const parsedNumber = Number(number);
 
@@ -126,10 +131,37 @@ export function QrManager({ initialStations, appOrigin }: QrManagerProps) {
   function downloadQr(station: StationRow) {
     const dataUrl = previews[station.id];
     if (!dataUrl) return;
-    const link = document.createElement("a");
-    link.href = dataUrl;
-    link.download = `${station.name.replace(/\s+/g, "-").toLowerCase()}-qr.png`;
-    link.click();
+    downloadDataUrl(
+      dataUrl,
+      `${station.name.replace(/\s+/g, "-").toLowerCase()}-qr.png`
+    );
+  }
+
+  async function downloadWallpaper(station: StationRow) {
+    setError(null);
+    setWallpaperBusyId(station.id);
+    try {
+      const url = `${appOrigin}${orderPath(station.type, station.number)}`;
+      const qrDataUrl = await QRCode.toDataURL(url, {
+        width: 1024,
+        margin: 1,
+        color: { dark: "#0a0a0a", light: "#ffffff" },
+        errorCorrectionLevel: "M",
+      });
+      const wallpaper = await composeStationWallpaper({
+        qrDataUrl,
+        stationName: station.name,
+        stationMeta: `${station.type.toUpperCase()} · #${station.number}`,
+      });
+      downloadDataUrl(
+        wallpaper,
+        `${station.name.replace(/\s+/g, "-").toLowerCase()}-wallpaper.png`
+      );
+    } catch {
+      setError("Could not build wallpaper. Try again.");
+    } finally {
+      setWallpaperBusyId(null);
+    }
   }
 
   function printQr(station: StationRow) {
@@ -289,7 +321,7 @@ export function QrManager({ initialStations, appOrigin }: QrManagerProps) {
                 Station QR codes
               </h2>
               <p className="mt-1 text-sm text-canvas/50">
-                Download or print for each PC / PlayStation.
+                Download QR, wallpaper, or print for each PC / PlayStation.
               </p>
             </div>
             <p className="text-xs tabular-nums text-canvas/40">
@@ -346,7 +378,17 @@ export function QrManager({ initialStations, appOrigin }: QrManagerProps) {
                       onClick={() => downloadQr(station)}
                       className="cursor-pointer rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-ink transition hover:brightness-95"
                     >
-                      Download
+                      Download QR
+                    </button>
+                    <button
+                      type="button"
+                      disabled={wallpaperBusyId === station.id}
+                      onClick={() => void downloadWallpaper(station)}
+                      className="cursor-pointer rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent transition hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {wallpaperBusyId === station.id
+                        ? "Building…"
+                        : "Wallpaper"}
                     </button>
                     <button
                       type="button"
@@ -366,7 +408,7 @@ export function QrManager({ initialStations, appOrigin }: QrManagerProps) {
                     <button
                       type="button"
                       onClick={() => void removeStation(station.id)}
-                      className="cursor-pointer rounded-xl px-3 py-2 text-xs font-semibold text-canvas/40 transition hover:bg-canvas/5 hover:text-red-400"
+                      className="col-span-2 cursor-pointer rounded-xl px-3 py-2 text-xs font-semibold text-canvas/40 transition hover:bg-canvas/5 hover:text-red-400"
                     >
                       Delete
                     </button>
