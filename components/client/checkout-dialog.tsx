@@ -2,9 +2,14 @@
 
 import { formatPrice } from "@/lib/format";
 import type { CartLine, PaymentMethod } from "@/lib/types";
+import {
+  buildUpiPayUri,
+  getCafeUpiConfig,
+  paiseToUpiAmount,
+} from "@/lib/upi";
 import { FoodLoader } from "@/components/ui/food-loader";
 import Image from "next/image";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 type CheckoutStep = "method" | "upi" | "success";
 
@@ -35,6 +40,8 @@ export function CheckoutDialog({
   );
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<"vpa" | "amount" | null>(null);
+  const [showQr, setShowQr] = useState(false);
 
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
   const total = lines.reduce(
@@ -42,6 +49,21 @@ export function CheckoutDialog({
     0
   );
   const nameOk = customerName.trim().length > 0;
+  const upi = useMemo(() => getCafeUpiConfig(), []);
+  const upiAmount = paiseToUpiAmount(total);
+  const upiUri = useMemo(
+    () =>
+      buildUpiPayUri({
+        vpa: upi.vpa,
+        payeeName: upi.payeeName,
+        amountPaise: total,
+        note: `Fallback ${stationLabel} ${customerName.trim() || "order"}`.slice(
+          0,
+          80
+        ),
+      }),
+    [upi.vpa, upi.payeeName, total, stationLabel, customerName]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +73,19 @@ export function CheckoutDialog({
     setPlacedMethod(null);
     setPlacing(false);
     setError(null);
+    setCopied(null);
+    setShowQr(false);
   }, [open]);
+
+  async function copyText(value: string, kind: "vpa" | "amount") {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(kind);
+      window.setTimeout(() => setCopied(null), 2000);
+    } catch {
+      setError("Could not copy — long-press the value instead.");
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -196,7 +230,7 @@ export function CheckoutDialog({
               <PaymentOption
                 selected={method === "upi"}
                 title="UPI"
-                description="Scan QR and pay with any UPI app"
+                description="Open GPay / PhonePe / Paytm and pay"
                 onSelect={() => setMethod("upi")}
               />
             </div>
@@ -244,25 +278,70 @@ export function CheckoutDialog({
                 id={titleId}
                 className="mt-1 text-2xl font-bold tracking-tight"
               >
-                Scan to pay {formatPrice(total)}
+                Pay {formatPrice(total)}
               </h2>
               <p className="mt-1 text-sm text-ink/55">
-                Delivering to {stationLabel}
+                You&apos;re already on your phone — open a UPI app instead of
+                scanning a QR.
               </p>
             </div>
 
-            <div className="overflow-y-auto px-5 pb-2">
-              <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-sm">
-                <Image
-                  src="/payment_qr.png"
-                  alt="UPI payment QR code"
-                  width={720}
-                  height={900}
-                  className="h-auto w-full"
-                  priority
-                />
+            <div className="space-y-3 overflow-y-auto px-5 pb-2">
+              <a
+                href={upiUri}
+                className="flex w-full items-center justify-center rounded-2xl bg-accent py-3.5 text-sm font-semibold text-ink transition hover:brightness-95"
+              >
+                Open GPay / PhonePe / Paytm
+              </a>
+
+              <div className="rounded-2xl border border-ink/10 bg-panel px-3 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink/40">
+                  Or pay manually
+                </p>
+                <div className="mt-2 space-y-2">
+                  <CopyRow
+                    label="UPI ID"
+                    value={upi.vpa}
+                    copied={copied === "vpa"}
+                    onCopy={() => void copyText(upi.vpa, "vpa")}
+                  />
+                  <CopyRow
+                    label="Amount"
+                    value={`₹${upiAmount}`}
+                    copyValue={upiAmount}
+                    copied={copied === "amount"}
+                    onCopy={() => void copyText(upiAmount, "amount")}
+                  />
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-ink/45">
+                  If the button does nothing (common on iPhone), copy the UPI
+                  ID and amount into your UPI app.
+                </p>
               </div>
-              <p className="mt-3 text-center text-sm text-ink/55">
+
+              <button
+                type="button"
+                onClick={() => setShowQr((v) => !v)}
+                className="w-full text-center text-xs font-medium text-ink/45 underline-offset-2 hover:text-ink/70 hover:underline"
+              >
+                {showQr
+                  ? "Hide QR code"
+                  : "Show QR (only if someone else can scan it)"}
+              </button>
+
+              {showQr ? (
+                <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-sm">
+                  <Image
+                    src="/payment_qr.png"
+                    alt="UPI payment QR code"
+                    width={720}
+                    height={900}
+                    className="h-auto w-full"
+                  />
+                </div>
+              ) : null}
+
+              <p className="text-center text-sm text-ink/55">
                 After paying, confirm below to place your order.
               </p>
             </div>
@@ -383,5 +462,38 @@ function PaymentOption({
         </span>
       </div>
     </button>
+  );
+}
+
+function CopyRow({
+  label,
+  value,
+  copyValue,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  copyValue?: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-ink/8 bg-canvas px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ink/40">
+          {label}
+        </p>
+        <p className="truncate text-sm font-semibold tabular-nums">{value}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onCopy}
+        className="shrink-0 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-canvas transition hover:bg-ink/90"
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+      <span className="sr-only">{copyValue ?? value}</span>
+    </div>
   );
 }
