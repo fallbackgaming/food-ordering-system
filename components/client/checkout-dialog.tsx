@@ -3,7 +3,7 @@
 import { formatPrice } from "@/lib/format";
 import type { CartLine, PaymentMethod } from "@/lib/types";
 import {
-  buildUpiPayUri,
+  buildUpiAppLinks,
   getCafeUpiConfig,
   paiseToUpiAmount,
 } from "@/lib/upi";
@@ -51,9 +51,9 @@ export function CheckoutDialog({
   const nameOk = customerName.trim().length > 0;
   const upi = useMemo(() => getCafeUpiConfig(), []);
   const upiAmount = paiseToUpiAmount(total);
-  const upiUri = useMemo(
+  const upiApps = useMemo(
     () =>
-      buildUpiPayUri({
+      buildUpiAppLinks({
         vpa: upi.vpa,
         payeeName: upi.payeeName,
         amountPaise: total,
@@ -230,7 +230,7 @@ export function CheckoutDialog({
               <PaymentOption
                 selected={method === "upi"}
                 title="UPI"
-                description="Open GPay / PhonePe / Paytm and pay"
+                description="Pay in Google Pay, PhonePe, or Paytm"
                 onSelect={() => setMethod("upi")}
               />
             </div>
@@ -287,12 +287,20 @@ export function CheckoutDialog({
             </div>
 
             <div className="space-y-3 overflow-y-auto px-5 pb-2">
-              <a
-                href={upiUri}
-                className="flex w-full items-center justify-center rounded-2xl bg-accent py-3.5 text-sm font-semibold text-ink transition hover:brightness-95"
-              >
-                Open GPay / PhonePe / Paytm
-              </a>
+              <div className="grid gap-2">
+                {upiApps.map((app) => (
+                  <a
+                    key={app.id}
+                    href={app.href}
+                    className="flex w-full items-center justify-center rounded-2xl bg-accent py-3.5 text-sm font-semibold text-ink transition hover:brightness-95"
+                  >
+                    Pay with {app.label}
+                  </a>
+                ))}
+              </div>
+              <p className="text-center text-xs text-ink/45">
+                Pick the app you use — opens it with amount filled in.
+              </p>
 
               <div className="rounded-2xl border border-ink/10 bg-panel px-3 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink/40">
@@ -314,8 +322,8 @@ export function CheckoutDialog({
                   />
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-ink/45">
-                  If the button does nothing (common on iPhone), copy the UPI
-                  ID and amount into your UPI app.
+                  If a button opens the wrong app or does nothing, copy the UPI
+                  ID and amount into your payment app.
                 </p>
               </div>
 

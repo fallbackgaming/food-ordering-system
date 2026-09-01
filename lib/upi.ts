@@ -1,6 +1,6 @@
 /**
  * UPI deep-link helpers for same-phone checkout.
- * QR codes can't be scanned by the phone displaying them — open the UPI app instead.
+ * Avoid bare `upi://` — WhatsApp Pay often steals that intent. Prefer app-specific schemes.
  */
 
 export type UpiPayParams = {
@@ -12,6 +12,12 @@ export type UpiPayParams = {
   amountPaise: number;
   /** Payment note shown in the UPI app */
   note?: string;
+};
+
+export type UpiAppLink = {
+  id: "gpay" | "phonepe" | "paytm";
+  label: string;
+  href: string;
 };
 
 /** Public cafe UPI details (safe to expose — same as a printed QR). */
@@ -28,11 +34,7 @@ export function paiseToUpiAmount(paise: number): string {
   return (Math.max(0, paise) / 100).toFixed(2);
 }
 
-/**
- * Standard UPI intent URI. On Android this opens the UPI app chooser
- * (GPay / PhonePe / Paytm / BHIM). On iOS support is limited — pair with copy fallbacks.
- */
-export function buildUpiPayUri(params: UpiPayParams): string {
+function upiQuery(params: UpiPayParams): string {
   const q = new URLSearchParams({
     pa: params.vpa,
     pn: params.payeeName,
@@ -42,5 +44,32 @@ export function buildUpiPayUri(params: UpiPayParams): string {
   if (params.note?.trim()) {
     q.set("tn", params.note.trim().slice(0, 80));
   }
-  return `upi://pay?${q.toString()}`;
+  return q.toString();
+}
+
+/**
+ * App-specific pay links. Generic `upi://` is intentionally omitted — on many
+ * phones WhatsApp claims that scheme and opens instead of GPay.
+ */
+export function buildUpiAppLinks(params: UpiPayParams): UpiAppLink[] {
+  const q = upiQuery(params);
+
+  return [
+    {
+      id: "gpay",
+      label: "Google Pay",
+      // tez:// is the reliable GPay (ex-Tez) scheme; gpay:// is a secondary alias
+      href: `tez://upi/pay?${q}`,
+    },
+    {
+      id: "phonepe",
+      label: "PhonePe",
+      href: `phonepe://pay?${q}`,
+    },
+    {
+      id: "paytm",
+      label: "Paytm",
+      href: `paytmmp://pay?${q}`,
+    },
+  ];
 }
