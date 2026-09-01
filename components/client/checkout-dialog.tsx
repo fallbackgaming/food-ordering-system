@@ -3,7 +3,7 @@
 import { formatPrice } from "@/lib/format";
 import type { CartLine, PaymentMethod } from "@/lib/types";
 import {
-  buildUpiAppLinks,
+  buildGpayPayUri,
   getCafeUpiConfig,
   paiseToUpiAmount,
 } from "@/lib/upi";
@@ -51,18 +51,19 @@ export function CheckoutDialog({
   const nameOk = customerName.trim().length > 0;
   const upi = useMemo(() => getCafeUpiConfig(), []);
   const upiAmount = paiseToUpiAmount(total);
-  const upiApps = useMemo(
+  const gpayUri = useMemo(
     () =>
-      buildUpiAppLinks({
+      buildGpayPayUri({
         vpa: upi.vpa,
         payeeName: upi.payeeName,
         amountPaise: total,
-        note: `Fallback ${stationLabel} ${customerName.trim() || "order"}`.slice(
-          0,
-          80
-        ),
+        aid: upi.aid,
+        // Keep note short / plain — fancy text can stall GPay bank load
+        note: `FB ${stationLabel} ${customerName.trim() || "order"}`
+          .replace(/[^\w\s.-]/g, " ")
+          .slice(0, 40),
       }),
-    [upi.vpa, upi.payeeName, total, stationLabel, customerName]
+    [upi.vpa, upi.payeeName, upi.aid, total, stationLabel, customerName]
   );
 
   useEffect(() => {
@@ -230,7 +231,7 @@ export function CheckoutDialog({
               <PaymentOption
                 selected={method === "upi"}
                 title="UPI"
-                description="Pay in Google Pay, PhonePe, or Paytm"
+                description="Pay with Google Pay"
                 onSelect={() => setMethod("upi")}
               />
             </div>
@@ -287,19 +288,14 @@ export function CheckoutDialog({
             </div>
 
             <div className="space-y-3 overflow-y-auto px-5 pb-2">
-              <div className="grid gap-2">
-                {upiApps.map((app) => (
-                  <a
-                    key={app.id}
-                    href={app.href}
-                    className="flex w-full items-center justify-center rounded-2xl bg-accent py-3.5 text-sm font-semibold text-ink transition hover:brightness-95"
-                  >
-                    Pay with {app.label}
-                  </a>
-                ))}
-              </div>
+              <a
+                href={gpayUri}
+                className="flex w-full items-center justify-center rounded-2xl bg-accent py-3.5 text-sm font-semibold text-ink transition hover:brightness-95"
+              >
+                Pay {formatPrice(total)} with Google Pay
+              </a>
               <p className="text-center text-xs text-ink/45">
-                Pick the app you use — opens it with amount filled in.
+                Opens Google Pay with amount filled in.
               </p>
 
               <div className="rounded-2xl border border-ink/10 bg-panel px-3 py-3">
@@ -322,8 +318,8 @@ export function CheckoutDialog({
                   />
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-ink/45">
-                  If a button opens the wrong app or does nothing, copy the UPI
-                  ID and amount into your payment app.
+                  If Google Pay opens but banks don&apos;t load, use Copy and
+                  paste into GPay → Pay to a UPI ID.
                 </p>
               </div>
 

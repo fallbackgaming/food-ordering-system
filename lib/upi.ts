@@ -1,75 +1,66 @@
 /**
- * UPI deep-link helpers for same-phone checkout.
- * Avoid bare `upi://` — WhatsApp Pay often steals that intent. Prefer app-specific schemes.
+ * Google Pay deep-link for same-phone UPI checkout.
+ * Bare `upi://` is avoided (WhatsApp often steals it).
  */
 
 export type UpiPayParams = {
-  /** Payee VPA, e.g. merchant@okaxis */
   vpa: string;
-  /** Payee display name */
   payeeName: string;
-  /** Amount in paise */
   amountPaise: number;
-  /** Payment note shown in the UPI app */
   note?: string;
+  /** Optional GPay account id from a scanned merchant/personal QR (`aid=…`) */
+  aid?: string;
 };
 
-export type UpiAppLink = {
-  id: "gpay" | "phonepe" | "paytm";
-  label: string;
-  href: string;
-};
-
-/** Public cafe UPI details (safe to expose — same as a printed QR). */
-export function getCafeUpiConfig(): { vpa: string; payeeName: string } {
+/** Public cafe UPI details (must match the name registered on the VPA). */
+export function getCafeUpiConfig(): {
+  vpa: string;
+  payeeName: string;
+  aid?: string;
+} {
+  const aid = process.env.NEXT_PUBLIC_UPI_AID?.trim();
   return {
     vpa: process.env.NEXT_PUBLIC_UPI_VPA?.trim() || "ishankadamlol@okaxis",
-    payeeName:
-      process.env.NEXT_PUBLIC_UPI_PAYEE_NAME?.trim() || "Fallback Gaming Cafe",
+    // Must match the name on the UPI account — wrong `pn` often breaks bank load in GPay
+    payeeName: process.env.NEXT_PUBLIC_UPI_PAYEE_NAME?.trim() || "Ishan Kadam",
+    aid: aid || "uGICAgIDnvMfoEQ",
   };
 }
 
-/** Rupees string for UPI `am` (two decimal places). */
 export function paiseToUpiAmount(paise: number): string {
   return (Math.max(0, paise) / 100).toFixed(2);
 }
 
+/** Manual query encoding — URLSearchParams uses `+` for spaces; GPay expects `%20`. */
 function upiQuery(params: UpiPayParams): string {
-  const q = new URLSearchParams({
-    pa: params.vpa,
-    pn: params.payeeName,
-    am: paiseToUpiAmount(params.amountPaise),
-    cu: "INR",
-  });
-  if (params.note?.trim()) {
-    q.set("tn", params.note.trim().slice(0, 80));
-  }
-  return q.toString();
+  const parts: Array<[string, string]> = [
+    ["pa", params.vpa.trim()],
+    ["pn", params.payeeName.trim()],
+    ["am", paiseToUpiAmount(params.amountPaise)],
+    ["cu", "INR"],
+  ];
+
+  const note = params.note?.trim().replace(/[^\w\s.-]/g, " ").slice(0, 50);
+  if (note) parts.push(["tn", note]);
+
+  if (params.aid?.trim()) parts.push(["aid", params.aid.trim()]);
+
+  return parts
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
 }
 
 /**
- * App-specific pay links. Generic `upi://` is intentionally omitted — on many
- * phones WhatsApp claims that scheme and opens instead of GPay.
+ * Google Pay pay URI.
+ * - Android: intent URL pinned to the GPay package (avoids WhatsApp / wrong handlers)
+ * - Other: tez:// scheme (legacy Tez → GPay)
  */
-export function buildUpiAppLinks(params: UpiPayParams): UpiAppLink[] {
+export function buildGpayPayUri(params: UpiPayParams): string {
   const q = upiQuery(params);
 
-  return [
-    {
-      id: "gpay",
-      label: "Google Pay",
-      // tez:// is the reliable GPay (ex-Tez) scheme; gpay:// is a secondary alias
-      href: `tez://upi/pay?${q}`,
-    },
-    {
-      id: "phonepe",
-      label: "PhonePe",
-      href: `phonepe://pay?${q}`,
-    },
-    {
-      id: "paytm",
-      label: "Paytm",
-      href: `paytmmp://pay?${q}`,
-    },
-  ];
+  if (typeof navigator !== "undefined" && /android/i.test(navigator.userAgent)) {
+    return `intent://upi/pay?${q}#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;end`;
+  }
+
+  return `tez://upi/pay?${q}`;
 }
