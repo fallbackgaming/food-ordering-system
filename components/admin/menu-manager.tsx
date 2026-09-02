@@ -108,7 +108,8 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
   }
 
   async function removeItem(item: MenuRow) {
-    if (!window.confirm(`Delete “${item.name}” from the menu?`)) return;
+    if (!window.confirm(`Remove “${item.name}” from the menu? (can be restored later)`))
+      return;
     setBusyId(item.id);
     const res = await fetch(`/api/admin/menu/${item.id}`, { method: "DELETE" });
     setBusyId(null);
@@ -445,14 +446,14 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
                           >
                             {item.isAvailable ? "Disable" : "Enable"}
                           </button>
-                          <button
-                            type="button"
-                            disabled={busyId === item.id}
-                            onClick={() => void removeItem(item)}
-                            className="cursor-pointer rounded-xl px-2.5 py-1.5 text-xs font-semibold text-canvas/40 transition hover:bg-canvas/5 hover:text-red-400 disabled:opacity-50"
-                          >
-                            Delete
-                          </button>
+                <button
+                  type="button"
+                  disabled={busyId === item.id}
+                  onClick={() => void removeItem(item)}
+                  className="cursor-pointer rounded-xl px-2.5 py-1.5 text-xs font-semibold text-canvas/40 transition hover:bg-canvas/5 hover:text-red-400 disabled:opacity-50"
+                >
+                  Remove
+                </button>
                         </div>
                       </td>
                     </tr>

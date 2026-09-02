@@ -286,6 +286,9 @@ export function CategoryManager({
           ))
         )}
       </ul>
+      <p className="border-t border-canvas/8 px-5 py-3 text-xs text-canvas/35">
+        Delete is soft — history stays; recreate the same name to restore.
+      </p>
     </section>
   );
 }

@@ -19,6 +19,10 @@ export async function getStationLabel(type: StationType, number: number) {
 
 export async function listMenuForCustomer() {
   const items = await prisma.menuItem.findMany({
+    where: {
+      deletedAt: null,
+      category: { deletedAt: null, isActive: true },
+    },
     include: { category: true },
     orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
   });

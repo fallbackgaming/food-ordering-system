@@ -78,7 +78,7 @@ export async function placeOrder(
 
   const menuIds = input.items.map((i) => i.menuItemId);
   const menuItems = await prisma.menuItem.findMany({
-    where: { id: { in: menuIds }, isAvailable: true },
+    where: { id: { in: menuIds }, isAvailable: true, deletedAt: null },
   });
   const byId = new Map(menuItems.map((m) => [m.id, m]));
 

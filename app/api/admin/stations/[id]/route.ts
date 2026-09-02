@@ -6,6 +6,7 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+/** Soft-delete station — keeps order history. */
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
     await requireAdminSession();
@@ -14,16 +15,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
+  const station = await prisma.station.update({
+    where: { id },
+    data: {
+      deletedAt: new Date(),
+      isActive: false,
+    },
+  });
 
-  try {
-    await prisma.station.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json(
-      { error: "Could not delete station (it may have orders)" },
-      { status: 400 }
-    );
-  }
+  return NextResponse.json({ station, ok: true });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -37,7 +37,16 @@ export async function PATCH(request: Request, context: RouteContext) {
   const body = (await request.json()) as {
     name?: string;
     isActive?: boolean;
+    restore?: boolean;
   };
+
+  if (body.restore) {
+    const station = await prisma.station.update({
+      where: { id },
+      data: { deletedAt: null, isActive: true },
+    });
+    return NextResponse.json({ station });
+  }
 
   const station = await prisma.station.update({
     where: { id },

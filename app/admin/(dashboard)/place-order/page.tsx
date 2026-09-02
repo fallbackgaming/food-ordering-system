@@ -6,10 +6,11 @@ export const dynamic = "force-dynamic";
 export default async function AdminPlaceOrderPage() {
   const [stations, menuItems] = await Promise.all([
     prisma.station.findMany({
-      where: { isActive: true },
+      where: { isActive: true, deletedAt: null },
       orderBy: [{ type: "asc" }, { number: "asc" }],
     }),
     prisma.menuItem.findMany({
+      where: { deletedAt: null },
       include: { category: true },
       orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
     }),

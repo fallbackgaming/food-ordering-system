@@ -10,11 +10,13 @@ export async function GET() {
   }
 
   const items = await prisma.menuItem.findMany({
+    where: { deletedAt: null },
     include: { category: true },
     orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
   });
 
   const categories = await prisma.category.findMany({
+    where: { deletedAt: null },
     orderBy: { sortOrder: "asc" },
   });
 

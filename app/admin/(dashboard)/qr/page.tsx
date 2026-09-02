@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminQrPage() {
   const [stations, appOrigin] = await Promise.all([
     prisma.station.findMany({
+      where: { deletedAt: null },
       orderBy: [{ type: "asc" }, { number: "asc" }],
     }),
     resolveAppOrigin(),

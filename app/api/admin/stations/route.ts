@@ -15,6 +15,7 @@ export async function GET() {
   }
 
   const stations = await prisma.station.findMany({
+    where: { deletedAt: null },
     orderBy: [{ type: "asc" }, { number: "asc" }],
   });
 
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
       update: {
         name,
         isActive: true,
+        deletedAt: null,
       },
     });
 

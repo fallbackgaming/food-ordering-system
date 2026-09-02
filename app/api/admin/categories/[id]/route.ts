@@ -18,7 +18,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     name?: string;
     sortOrder?: number;
     isActive?: boolean;
+    restore?: boolean;
   };
+
+  if (body.restore) {
+    const category = await prisma.category.update({
+      where: { id },
+      data: { deletedAt: null, isActive: true },
+      include: { _count: { select: { items: true } } },
+    });
+    return NextResponse.json({ category });
+  }
 
   if (body.name !== undefined) {
     const name = body.name.trim();
@@ -26,7 +36,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
     const clash = await prisma.category.findFirst({
-      where: { name, NOT: { id } },
+      where: { name, deletedAt: null, NOT: { id } },
     });
     if (clash) {
       return NextResponse.json(
@@ -47,12 +57,17 @@ export async function PATCH(request: Request, context: RouteContext) {
         ? { isActive: body.isActive }
         : {}),
     },
-    include: { _count: { select: { items: true } } },
+    include: {
+      _count: {
+        select: { items: { where: { deletedAt: null } } },
+      },
+    },
   });
 
   return NextResponse.json({ category });
 }
 
+/** Soft-delete category (blocked if it still has live menu items). */
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
     await requireAdminSession();
@@ -61,7 +76,9 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const itemCount = await prisma.menuItem.count({ where: { categoryId: id } });
+  const itemCount = await prisma.menuItem.count({
+    where: { categoryId: id, deletedAt: null },
+  });
   if (itemCount > 0) {
     return NextResponse.json(
       {
@@ -71,6 +88,14 @@ export async function DELETE(_request: Request, context: RouteContext) {
     );
   }
 
-  await prisma.category.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  const category = await prisma.category.update({
+    where: { id },
+    data: {
+      deletedAt: new Date(),
+      isActive: false,
+    },
+    include: { _count: { select: { items: true } } },
+  });
+
+  return NextResponse.json({ category, ok: true });
 }

@@ -21,7 +21,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     emoji?: string;
     isAvailable?: boolean;
     categoryId?: string;
+    /** Soft-restore a deleted item */
+    restore?: boolean;
   };
+
+  if (body.restore) {
+    const item = await prisma.menuItem.update({
+      where: { id },
+      data: { deletedAt: null },
+      include: { category: true },
+    });
+    return NextResponse.json({ item });
+  }
 
   const item = await prisma.menuItem.update({
     where: { id },
@@ -45,6 +56,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   return NextResponse.json({ item });
 }
 
+/** Soft-delete — keeps order history; item hidden from catalog. */
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
     await requireAdminSession();
@@ -53,6 +65,14 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  await prisma.menuItem.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  const item = await prisma.menuItem.update({
+    where: { id },
+    data: {
+      deletedAt: new Date(),
+      isAvailable: false,
+    },
+    include: { category: true },
+  });
+
+  return NextResponse.json({ item, ok: true });
 }

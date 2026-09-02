@@ -9,6 +9,11 @@ import { FoodLoader } from "@/components/ui/food-loader";
 const BASE_NAV = [
   { href: "/admin", label: "Orders", match: (path: string) => path === "/admin" },
   {
+    href: "/admin/analytics",
+    label: "Analytics",
+    match: (path: string) => path.startsWith("/admin/analytics"),
+  },
+  {
     href: "/admin/place-order",
     label: "Place order",
     match: (path: string) => path.startsWith("/admin/place-order"),
