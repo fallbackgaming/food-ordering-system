@@ -74,20 +74,12 @@ export default async function OrderPage({ params }: OrderPageProps) {
       </header>
 
       <main className="relative z-10 mx-auto w-full max-w-2xl flex-1 px-4 pb-36 pt-2 lg:max-w-4xl lg:pb-14">
-        {menuItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-canvas/15 bg-fog px-4 py-14 text-center">
-            <p className="text-sm text-canvas/55">
-              Menu is empty. Ask staff to add items in admin.
-            </p>
-          </div>
-        ) : (
-          <OrderMenu
-            items={menuItems}
-            stationLabel={stationLabel}
-            stationType={stationType}
-            stationNumber={stationNumber}
-          />
-        )}
+        <OrderMenu
+          items={menuItems}
+          stationLabel={stationLabel}
+          stationType={stationType}
+          stationNumber={stationNumber}
+        />
       </main>
     </div>
   );

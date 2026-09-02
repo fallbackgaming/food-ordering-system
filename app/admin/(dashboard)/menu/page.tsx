@@ -1,4 +1,4 @@
-import { MenuManager } from "@/components/admin/menu-manager";
+import { AdminMenuClient } from "@/components/admin/admin-menu-client";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,10 @@ export default async function AdminMenuPage() {
       include: { category: true },
       orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
     }),
-    prisma.category.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.category.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      include: { _count: { select: { items: true } } },
+    }),
   ]);
 
   return (
@@ -22,11 +25,11 @@ export default async function AdminMenuPage() {
           Menu
         </h1>
         <p className="mt-1 text-sm text-canvas/50">
-          Manage catalog items with a form, then control availability in the
-          table.
+          Manage categories and items — edit anytime, control what customers
+          see.
         </p>
       </div>
-      <MenuManager
+      <AdminMenuClient
         initialItems={items.map((item) => ({
           id: item.id,
           name: item.name,
@@ -37,7 +40,13 @@ export default async function AdminMenuPage() {
           categoryId: item.categoryId,
           categoryName: item.category.name,
         }))}
-        categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+        initialCategories={categories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          sortOrder: c.sortOrder,
+          isActive: c.isActive,
+          itemCount: c._count.items,
+        }))}
       />
     </div>
   );

@@ -29,9 +29,13 @@ model Category {
   name      String     @unique
   sortOrder Int        @default(0)
   isActive  Boolean    @default(true)
+  /// Soft delete — null means active in catalog
+  deletedAt DateTime?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   items     MenuItem[]
+
+  @@index([deletedAt])
 }
 
 model MenuItem {
@@ -43,6 +47,8 @@ model MenuItem {
   emoji       String      @default("")
   isAvailable Boolean     @default(true)
   categoryId  String
+  /// Soft delete — null means listed in admin catalog
+  deletedAt   DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   category    Category    @relation(fields: [categoryId], references: [id])
@@ -50,6 +56,7 @@ model MenuItem {
 
   @@index([categoryId])
   @@index([isAvailable])
+  @@index([deletedAt])
 }
 
 /// Physical PC / PlayStation seat customers order from (QR target).
@@ -62,11 +69,14 @@ model Station {
   /// Opaque token for QR URLs so guests cannot spoof another station by editing the path.
   qrToken   String      @unique @default(cuid())
   isActive  Boolean     @default(true)
+  /// Soft delete — keeps order history attached
+  deletedAt DateTime?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   orders    Order[]
 
   @@unique([type, number])
+  @@index([deletedAt])
 }
 
 model Order {

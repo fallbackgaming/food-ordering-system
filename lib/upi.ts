@@ -20,10 +20,10 @@ export function getCafeUpiConfig(): {
 } {
   const aid = process.env.NEXT_PUBLIC_UPI_AID?.trim();
   return {
-    vpa: process.env.NEXT_PUBLIC_UPI_VPA?.trim() || "ishankadamlol@okaxis",
+    vpa: process.env.NEXT_PUBLIC_UPI_VPA?.trim() || "alpeshzanjare123-1@okaxis",
     // Must match the name on the UPI account — wrong `pn` often breaks bank load in GPay
-    payeeName: process.env.NEXT_PUBLIC_UPI_PAYEE_NAME?.trim() || "Ishan Kadam",
-    aid: aid || "uGICAgIDnvMfoEQ",
+    payeeName: process.env.NEXT_PUBLIC_UPI_PAYEE_NAME?.trim() || "Alpesh Zanjare",
+    aid: aid || "uGICAgIDVn9rnbg",
   };
 }
 

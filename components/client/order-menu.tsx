@@ -3,6 +3,11 @@
 import { CartSheet } from "@/components/client/cart-sheet";
 import { CheckoutDialog } from "@/components/client/checkout-dialog";
 import { MenuList } from "@/components/client/menu-list";
+import {
+  StationOrderStatus,
+  toStationOrder,
+  type StationOrder,
+} from "@/components/client/station-order-status";
 import type { CartLine, MenuItem, PaymentMethod, StationType } from "@/lib/types";
 import { useMemo, useState } from "react";
 
@@ -22,6 +27,7 @@ export function OrderMenu({
   const [lines, setLines] = useState<CartLine[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutLines, setCheckoutLines] = useState<CartLine[]>([]);
+  const [seedOrders, setSeedOrders] = useState<StationOrder[] | undefined>();
 
   const quantities = useMemo(() => {
     const map: Record<string, number> = {};
@@ -103,31 +109,56 @@ export function OrderMenu({
       throw new Error(data?.error ?? "Could not place order");
     }
 
+    const data = (await res.json()) as {
+      order: Parameters<typeof toStationOrder>[0];
+    };
+    const placed = toStationOrder(data.order);
+    setSeedOrders((prev) => {
+      const rest = (prev ?? []).filter((o) => o.id !== placed.id);
+      return [placed, ...rest];
+    });
     setLines([]);
   }
 
   return (
     <>
-      <MenuList
-        items={items}
-        quantities={quantities}
-        onAdd={addItem}
-        onDecrement={decrement}
+      <StationOrderStatus
+        stationType={stationType}
+        stationNumber={stationNumber}
+        seedOrders={seedOrders}
       />
-      <CartSheet
-        lines={lines}
-        onIncrement={increment}
-        onDecrement={decrement}
-        onClear={() => setLines([])}
-        onCheckout={openCheckout}
-      />
-      <CheckoutDialog
-        open={checkoutOpen}
-        lines={checkoutLines}
-        stationLabel={stationLabel}
-        onClose={() => setCheckoutOpen(false)}
-        onPlaceOrder={placeOrder}
-      />
+      {items.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-canvas/15 bg-fog px-4 py-14 text-center">
+          <p className="text-sm text-canvas/55">
+            Menu is empty. Ask staff to add items in admin.
+          </p>
+        </div>
+      ) : (
+        <MenuList
+          items={items}
+          quantities={quantities}
+          onAdd={addItem}
+          onDecrement={decrement}
+        />
+      )}
+      {items.length > 0 ? (
+        <>
+          <CartSheet
+            lines={lines}
+            onIncrement={increment}
+            onDecrement={decrement}
+            onClear={() => setLines([])}
+            onCheckout={openCheckout}
+          />
+          <CheckoutDialog
+            open={checkoutOpen}
+            lines={checkoutLines}
+            stationLabel={stationLabel}
+            onClose={() => setCheckoutOpen(false)}
+            onPlaceOrder={placeOrder}
+          />
+        </>
+      ) : null}
     </>
   );
 }

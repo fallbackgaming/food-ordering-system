@@ -1,7 +1,7 @@
 "use client";
 
 import { formatPrice } from "@/lib/format";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type MenuRow = {
@@ -34,11 +34,27 @@ const emptyForm = (categoryId: string) => ({
 export function MenuManager({ initialItems, categories }: MenuManagerProps) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
+  const [categoryOptions, setCategoryOptions] = useState(categories);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm(categories[0]?.id ?? ""));
+
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
+
+  useEffect(() => {
+    setCategoryOptions(categories);
+    setForm((f) => {
+      if (f.categoryId && categories.some((c) => c.id === f.categoryId)) {
+        return f;
+      }
+      return { ...f, categoryId: categories[0]?.id ?? "" };
+    });
+  }, [categories]);
 
   const stats = useMemo(() => {
     const available = items.filter((i) => i.isAvailable).length;
@@ -48,6 +64,28 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
       unavailable: items.length - available,
     };
   }, [items]);
+
+  function startEdit(item: MenuRow) {
+    setEditingId(item.id);
+    setForm({
+      name: item.name,
+      description: item.description,
+      priceRupees: String(item.price / 100),
+      emoji: item.emoji,
+      categoryId: item.categoryId,
+      isAvailable: item.isAvailable,
+    });
+    setError(null);
+    setSuccess(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm(emptyForm(form.categoryId || categoryOptions[0]?.id || ""));
+    setError(null);
+    setSuccess(null);
+  }
 
   async function toggleAvailable(item: MenuRow) {
     setBusyId(item.id);
@@ -69,7 +107,21 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
     router.refresh();
   }
 
-  async function onCreate(e: FormEvent) {
+  async function removeItem(item: MenuRow) {
+    if (!window.confirm(`Delete “${item.name}” from the menu?`)) return;
+    setBusyId(item.id);
+    const res = await fetch(`/api/admin/menu/${item.id}`, { method: "DELETE" });
+    setBusyId(null);
+    if (!res.ok) {
+      setError("Could not delete item.");
+      return;
+    }
+    setItems((prev) => prev.filter((row) => row.id !== item.id));
+    if (editingId === item.id) resetForm();
+    router.refresh();
+  }
+
+  async function onSave(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
@@ -84,26 +136,31 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
       return;
     }
 
-    setCreating(true);
-    const res = await fetch("/api/admin/menu", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        description: form.description,
-        price: Math.round(rupees * 100),
-        emoji: form.emoji,
-        categoryId: form.categoryId,
-        isAvailable: form.isAvailable,
-      }),
-    });
-    setCreating(false);
+    const payload = {
+      name: form.name,
+      description: form.description,
+      price: Math.round(rupees * 100),
+      emoji: form.emoji,
+      categoryId: form.categoryId,
+      isAvailable: form.isAvailable,
+    };
+
+    setSaving(true);
+    const res = await fetch(
+      editingId ? `/api/admin/menu/${editingId}` : "/api/admin/menu",
+      {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
+    setSaving(false);
 
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as {
         error?: string;
       } | null;
-      setError(data?.error ?? "Could not add item.");
+      setError(data?.error ?? "Could not save item.");
       return;
     }
 
@@ -120,21 +177,27 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
       };
     };
 
-    setItems((prev) => [
-      {
-        id: data.item.id,
-        name: data.item.name,
-        description: data.item.description,
-        price: data.item.price,
-        emoji: data.item.emoji,
-        isAvailable: data.item.isAvailable,
-        categoryId: data.item.categoryId,
-        categoryName: data.item.category.name,
-      },
-      ...prev,
-    ]);
-    setForm(emptyForm(form.categoryId));
-    setSuccess(`Added “${data.item.name}” to the menu.`);
+    const row: MenuRow = {
+      id: data.item.id,
+      name: data.item.name,
+      description: data.item.description,
+      price: data.item.price,
+      emoji: data.item.emoji,
+      isAvailable: data.item.isAvailable,
+      categoryId: data.item.categoryId,
+      categoryName: data.item.category.name,
+    };
+
+    if (editingId) {
+      setItems((prev) => prev.map((item) => (item.id === editingId ? row : item)));
+      setSuccess(`Updated “${row.name}”.`);
+      setEditingId(null);
+      setForm(emptyForm(row.categoryId));
+    } else {
+      setItems((prev) => [row, ...prev]);
+      setForm(emptyForm(form.categoryId));
+      setSuccess(`Added “${row.name}” to the menu.`);
+    }
     router.refresh();
   }
 
@@ -153,14 +216,16 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
               Catalog
             </p>
             <h2 className="mt-1 text-lg font-semibold tracking-tight">
-              Add menu item
+              {editingId ? "Edit menu item" : "Add menu item"}
             </h2>
             <p className="mt-1 text-sm text-canvas/45">
-              Fill the form and save to publish on the customer menu.
+              {editingId
+                ? "Update fields and save — changes show on the customer menu."
+                : "Fill the form and save to publish on the customer menu."}
             </p>
           </div>
 
-          <form onSubmit={onCreate} className="space-y-4 px-5 py-5">
+          <form onSubmit={(e) => void onSave(e)} className="space-y-4 px-5 py-5">
             <Field label="Item name" htmlFor="item-name">
               <input
                 id="item-name"
@@ -224,10 +289,10 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
                 className="field-input-dark"
                 required
               >
-                {categories.length === 0 ? (
+                {categoryOptions.length === 0 ? (
                   <option value="">No categories</option>
                 ) : (
-                  categories.map((c) => (
+                  categoryOptions.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
@@ -245,7 +310,7 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
                 }
                 className="size-4 rounded border-canvas/20 accent-accent"
               />
-              Available immediately
+              Available on menu
             </label>
 
             {error ? (
@@ -262,21 +327,21 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => {
-                  setForm(emptyForm(form.categoryId));
-                  setError(null);
-                  setSuccess(null);
-                }}
+                onClick={resetForm}
                 className="flex-1 cursor-pointer rounded-xl border border-canvas/15 px-3 py-2.5 text-sm font-medium text-canvas/70 transition hover:bg-canvas/5 hover:text-canvas"
               >
-                Clear
+                {editingId ? "Cancel" : "Clear"}
               </button>
               <button
                 type="submit"
-                disabled={creating || !form.categoryId}
+                disabled={saving || !form.categoryId}
                 className="flex-[1.4] cursor-pointer rounded-xl bg-accent px-3 py-2.5 text-sm font-semibold text-ink transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {creating ? "Saving…" : "Save item"}
+                {saving
+                  ? "Saving…"
+                  : editingId
+                    ? "Update item"
+                    : "Save item"}
               </button>
             </div>
           </form>
@@ -292,20 +357,20 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
                 Menu catalog
               </h2>
               <p className="mt-1 text-sm text-canvas/45">
-                Toggle availability without deleting items.
+                Edit items, toggle availability, or delete.
               </p>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="bg-ink/60 text-xs uppercase tracking-wide text-canvas/40">
                 <tr>
                   <th className="px-4 py-3 font-medium">Item</th>
                   <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium">Price</th>
                   <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Action</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-canvas/8">
@@ -322,7 +387,11 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
                   items.map((item) => (
                     <tr
                       key={item.id}
-                      className={!item.isAvailable ? "bg-ink/30" : undefined}
+                      className={
+                        !item.isAvailable || editingId === item.id
+                          ? "bg-ink/30"
+                          : undefined
+                      }
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -360,14 +429,31 @@ export function MenuManager({ initialItems, categories }: MenuManagerProps) {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          disabled={busyId === item.id}
-                          onClick={() => void toggleAvailable(item)}
-                          className="cursor-pointer rounded-xl border border-canvas/15 px-2.5 py-1.5 text-xs font-semibold text-canvas/75 transition hover:bg-canvas/5 hover:text-canvas disabled:opacity-50"
-                        >
-                          {item.isAvailable ? "Disable" : "Enable"}
-                        </button>
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(item)}
+                            className="cursor-pointer rounded-xl border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/20"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyId === item.id}
+                            onClick={() => void toggleAvailable(item)}
+                            className="cursor-pointer rounded-xl border border-canvas/15 px-2.5 py-1.5 text-xs font-semibold text-canvas/75 transition hover:bg-canvas/5 hover:text-canvas disabled:opacity-50"
+                          >
+                            {item.isAvailable ? "Disable" : "Enable"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyId === item.id}
+                            onClick={() => void removeItem(item)}
+                            className="cursor-pointer rounded-xl px-2.5 py-1.5 text-xs font-semibold text-canvas/40 transition hover:bg-canvas/5 hover:text-red-400 disabled:opacity-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

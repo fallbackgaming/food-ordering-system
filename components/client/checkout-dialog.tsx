@@ -1,13 +1,9 @@
 "use client";
 
+import { FoodLoader } from "@/components/ui/food-loader";
 import { formatPrice } from "@/lib/format";
 import type { CartLine, PaymentMethod } from "@/lib/types";
-import {
-  buildGpayPayUri,
-  getCafeUpiConfig,
-  paiseToUpiAmount,
-} from "@/lib/upi";
-import { FoodLoader } from "@/components/ui/food-loader";
+import { buildGpayPayUri, getCafeUpiConfig, paiseToUpiAmount } from "@/lib/upi";
 import Image from "next/image";
 import { useEffect, useId, useMemo, useState } from "react";
 
@@ -20,7 +16,7 @@ type CheckoutDialogProps = {
   onClose: () => void;
   onPlaceOrder: (
     method: Extract<PaymentMethod, "cash" | "upi">,
-    customerName: string
+    customerName: string,
   ) => Promise<void>;
 };
 
@@ -35,9 +31,7 @@ export function CheckoutDialog({
   const [step, setStep] = useState<CheckoutStep>("method");
   const [method, setMethod] = useState<"cash" | "upi" | null>(null);
   const [customerName, setCustomerName] = useState("");
-  const [placedMethod, setPlacedMethod] = useState<"cash" | "upi" | null>(
-    null
-  );
+  const [placedMethod, setPlacedMethod] = useState<"cash" | "upi" | null>(null);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<"vpa" | "amount" | null>(null);
@@ -46,7 +40,7 @@ export function CheckoutDialog({
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
   const total = lines.reduce(
     (sum, line) => sum + line.unitPrice * line.quantity,
-    0
+    0,
   );
   const nameOk = customerName.trim().length > 0;
   const upi = useMemo(() => getCafeUpiConfig(), []);
@@ -63,7 +57,7 @@ export function CheckoutDialog({
           .replace(/[^\w\s.-]/g, " ")
           .slice(0, 40),
       }),
-    [upi.vpa, upi.payeeName, upi.aid, total, stationLabel, customerName]
+    [upi.vpa, upi.payeeName, upi.aid, total, stationLabel, customerName],
   );
 
   useEffect(() => {
@@ -336,7 +330,7 @@ export function CheckoutDialog({
               {showQr ? (
                 <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-sm">
                   <Image
-                    src="/payment_qr.png"
+                    src="/payment_qr.jpg"
                     alt="UPI payment QR code"
                     width={720}
                     height={900}
@@ -385,10 +379,7 @@ export function CheckoutDialog({
             <div className="animate-check mx-auto flex size-16 items-center justify-center rounded-full bg-accent text-2xl font-bold text-ink">
               ✓
             </div>
-            <h2
-              id={titleId}
-              className="mt-5 text-2xl font-bold tracking-tight"
-            >
+            <h2 id={titleId} className="mt-5 text-2xl font-bold tracking-tight">
               Order placed
             </h2>
             <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-ink/60">
