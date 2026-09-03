@@ -3,7 +3,7 @@
 import { FoodLoader } from "@/components/ui/food-loader";
 import { formatPrice } from "@/lib/format";
 import type { CartLine, PaymentMethod } from "@/lib/types";
-import { buildGpayPayUri, getCafeUpiConfig, paiseToUpiAmount } from "@/lib/upi";
+import { getCafeUpiConfig, openGpayPayment, paiseToUpiAmount } from "@/lib/upi";
 import Image from "next/image";
 import { useEffect, useId, useMemo, useState } from "react";
 
@@ -45,20 +45,18 @@ export function CheckoutDialog({
   const nameOk = customerName.trim().length > 0;
   const upi = useMemo(() => getCafeUpiConfig(), []);
   const upiAmount = paiseToUpiAmount(total);
-  const gpayUri = useMemo(
-    () =>
-      buildGpayPayUri({
-        vpa: upi.vpa,
-        payeeName: upi.payeeName,
-        amountPaise: total,
-        aid: upi.aid,
-        // Keep note short / plain — fancy text can stall GPay bank load
-        note: `FB ${stationLabel} ${customerName.trim() || "order"}`
-          .replace(/[^\w\s.-]/g, " ")
-          .slice(0, 40),
-      }),
-    [upi.vpa, upi.payeeName, upi.aid, total, stationLabel, customerName],
-  );
+
+  function payWithGpay() {
+    openGpayPayment({
+      vpa: upi.vpa,
+      payeeName: upi.payeeName,
+      amountPaise: total,
+      transactionRef: `FB${Date.now().toString(36).toUpperCase()}`,
+      note: `FB ${stationLabel} ${customerName.trim() || "order"}`
+        .replace(/[^\w\s.-]/g, " ")
+        .slice(0, 40),
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -282,14 +280,16 @@ export function CheckoutDialog({
             </div>
 
             <div className="space-y-3 overflow-y-auto px-5 pb-2">
-              <a
-                href={gpayUri}
-                className="flex w-full items-center justify-center rounded-2xl bg-accent py-3.5 text-sm font-semibold text-ink transition hover:brightness-95"
+              <button
+                type="button"
+                onClick={payWithGpay}
+                className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-accent py-3.5 text-sm font-semibold text-ink transition hover:brightness-95"
               >
                 Pay {formatPrice(total)} with Google Pay
-              </a>
+              </button>
               <p className="text-center text-xs text-ink/45">
-                Opens Google Pay with amount filled in.
+                Opens Google Pay with amount filled in (same path as Pay to UPI
+                ID).
               </p>
 
               <div className="rounded-2xl border border-ink/10 bg-panel px-3 py-3">

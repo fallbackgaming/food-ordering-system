@@ -1,29 +1,26 @@
 /**
  * Google Pay deep-link for same-phone UPI checkout.
- * Bare `upi://` is avoided (WhatsApp often steals it).
+ *
+ * Manual “Pay to UPI ID” works; broken intents often fail with a misleading
+ * Axis “bank limit” error. Keep the URI as close to a normal `upi://pay` as
+ * possible: raw `@` in VPA, scheme=upi (not tez), no `aid`.
  */
 
 export type UpiPayParams = {
   vpa: string;
   payeeName: string;
   amountPaise: number;
+  /** Unique per attempt (UPI `tr`) — alphanumeric only */
+  transactionRef: string;
   note?: string;
-  /** Optional GPay account id from a scanned merchant/personal QR (`aid=…`) */
-  aid?: string;
 };
 
-/** Public cafe UPI details (must match the name registered on the VPA). */
-export function getCafeUpiConfig(): {
-  vpa: string;
-  payeeName: string;
-  aid?: string;
-} {
-  const aid = process.env.NEXT_PUBLIC_UPI_AID?.trim();
+/** Public cafe UPI details (safe to expose — same as a printed QR). */
+export function getCafeUpiConfig(): { vpa: string; payeeName: string } {
   return {
     vpa: process.env.NEXT_PUBLIC_UPI_VPA?.trim() || "alpeshzanjare123-1@okaxis",
-    // Must match the name on the UPI account — wrong `pn` often breaks bank load in GPay
-    payeeName: process.env.NEXT_PUBLIC_UPI_PAYEE_NAME?.trim() || "Alpesh Zanjare",
-    aid: aid || "uGICAgIDVn9rnbg",
+    payeeName:
+      process.env.NEXT_PUBLIC_UPI_PAYEE_NAME?.trim() || "Alpesh Zanjare",
   };
 }
 
@@ -31,36 +28,73 @@ export function paiseToUpiAmount(paise: number): string {
   return (Math.max(0, paise) / 100).toFixed(2);
 }
 
-/** Manual query encoding — URLSearchParams uses `+` for spaces; GPay expects `%20`. */
+/** Encode for UPI query — never turn `@` in the VPA into `%40`. */
+function encodeParam(value: string, opts?: { keepAt?: boolean }) {
+  if (opts?.keepAt) {
+    return value
+      .split("@")
+      .map((part) => encodeURIComponent(part))
+      .join("@");
+  }
+  return encodeURIComponent(value);
+}
+
 function upiQuery(params: UpiPayParams): string {
+  const tr = params.transactionRef.replace(/[^a-zA-Z0-9]/g, "").slice(0, 35);
   const parts: Array<[string, string]> = [
-    ["pa", params.vpa.trim()],
-    ["pn", params.payeeName.trim()],
+    ["pa", encodeParam(params.vpa.trim(), { keepAt: true })],
+    ["pn", encodeParam(params.payeeName.trim())],
     ["am", paiseToUpiAmount(params.amountPaise)],
     ["cu", "INR"],
   ];
 
-  const note = params.note?.trim().replace(/[^\w\s.-]/g, " ").slice(0, 50);
-  if (note) parts.push(["tn", note]);
+  if (tr) parts.push(["tr", tr]);
 
-  if (params.aid?.trim()) parts.push(["aid", params.aid.trim()]);
+  const note = params.note?.trim().replace(/[^\w\s.-]/g, " ").trim().slice(0, 50);
+  if (note) parts.push(["tn", encodeParam(note)]);
 
-  return parts
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&");
+  return parts.map(([k, v]) => `${k}=${v}`).join("&");
+}
+
+/** Standard UPI pay URI (same shape as a scanned QR / manual pay). */
+export function buildUpiPayUri(params: UpiPayParams): string {
+  return `upi://pay?${upiQuery(params)}`;
 }
 
 /**
- * Google Pay pay URI.
- * - Android: intent URL pinned to the GPay package (avoids WhatsApp / wrong handlers)
- * - Other: tez:// scheme (legacy Tez → GPay)
+ * Open Google Pay with a UPI pay request.
+ * Prefer Android intent with scheme=upi + GPay package (matches manual pay path).
  */
 export function buildGpayPayUri(params: UpiPayParams): string {
   const q = upiQuery(params);
 
   if (typeof navigator !== "undefined" && /android/i.test(navigator.userAgent)) {
-    return `intent://upi/pay?${q}#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;end`;
+    // Resolves to upi://pay?... inside GPay — not tez://upi/pay
+    return (
+      `intent://pay?${q}` +
+      `#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`
+    );
   }
 
-  return `tez://upi/pay?${q}`;
+  // iOS / desktop fallback
+  return `gpay://upi/pay?${q}`;
+}
+
+/** Navigate to GPay; falls back to plain upi:// if intent is blocked. */
+export function openGpayPayment(params: UpiPayParams) {
+  const primary = buildGpayPayUri(params);
+  const fallback = buildUpiPayUri(params);
+
+  try {
+    window.location.href = primary;
+  } catch {
+    window.location.href = fallback;
+  }
+
+  // If GPay didn't take over (desktop / blocked intent), try plain UPI shortly after
+  window.setTimeout(() => {
+    if (document.visibilityState === "visible") {
+      window.location.href = fallback;
+    }
+  }, 1200);
 }
