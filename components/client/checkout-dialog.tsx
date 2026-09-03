@@ -6,7 +6,7 @@ import type { CartLine, PaymentMethod } from "@/lib/types";
 import {
   copyText as copyToClipboard,
   getCafeUpiConfig,
-  openMerchantGpayIntent,
+  openGpayWithAmount,
   paiseToUpiAmount,
   startManualGpayFlow,
 } from "@/lib/upi";
@@ -66,10 +66,7 @@ export function CheckoutDialog({
   async function payViaGpaySendMoney() {
     setError(null);
     setPayHint(null);
-    const result = await startManualGpayFlow({
-      vpa: upi.vpa,
-      amountRupees: upiAmount,
-    });
+    const result = await startManualGpayFlow({ vpa: upi.vpa });
     setCopied("both");
     window.setTimeout(() => setCopied(null), 3000);
     if (result === "copy-failed") {
@@ -77,28 +74,31 @@ export function CheckoutDialog({
       return;
     }
     setPayHint(
-      `UPI ID copied. In GPay use Pay → Bank / UPI ID, paste ${upi.vpa}, enter ₹${upiAmount}.`
+      `UPI ID copied. In GPay use Pay → UPI ID, paste, enter ₹${upiAmount}.`
     );
   }
 
-  function tryMerchantAutofill() {
-    if (!upi.hasMerchantMcc || !upi.mcc) {
-      setPayHint(
-        "Your GPay QR has no merchant MCC (mc). Ask Axis / Google Pay Business for the 4-digit MCC, set NEXT_PUBLIC_UPI_MCC, then retry autofill."
-      );
+  function payWithAmountAutofill() {
+    setError(null);
+    setPayHint(null);
+    if (total <= 0) {
+      setError("Cart total is zero — add items before paying.");
       return;
     }
-    setPayHint(null);
-    openMerchantGpayIntent({
-      vpa: upi.vpa,
-      payeeName: upi.payeeName,
-      amountPaise: total,
-      transactionRef: `FB${Date.now().toString(36).toUpperCase()}`,
-      note: `FB ${stationLabel} ${customerName.trim() || "order"}`
-        .replace(/[^\w\s.-]/g, " ")
-        .slice(0, 40),
-      mcc: upi.mcc,
-    });
+    try {
+      openGpayWithAmount({
+        vpa: upi.vpa,
+        payeeName: upi.payeeName,
+        amountPaise: total,
+        transactionRef: `FB${Date.now().toString(36).toUpperCase()}`,
+        note: `FB ${stationLabel} ${customerName.trim() || "order"}`
+          .replace(/[^\w\s.-]/g, " ")
+          .slice(0, 40),
+        mcc: upi.mcc,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open Google Pay");
+    }
   }
 
   useEffect(() => {
@@ -257,7 +257,7 @@ export function CheckoutDialog({
               <PaymentOption
                 selected={method === "upi"}
                 title="UPI"
-                description="Copy UPI ID and pay in Google Pay"
+                description="Pay with Google Pay (amount filled)"
                 onSelect={() => setMethod("upi")}
               />
             </div>
@@ -329,30 +329,25 @@ export function CheckoutDialog({
 
               <ol className="space-y-1.5 rounded-2xl border border-ink/10 bg-panel px-4 py-3 text-sm text-ink/65">
                 <li>
-                  <span className="font-semibold text-ink">1.</span> Tap below —
-                  we copy the UPI ID and open Google Pay
+                  <span className="font-semibold text-ink">1.</span> Tap Pay with
+                  Google Pay — amount should be filled
                 </li>
                 <li>
-                  <span className="font-semibold text-ink">2.</span> Pay → Bank or
-                  UPI ID → paste
+                  <span className="font-semibold text-ink">2.</span> Confirm in
+                  GPay and complete payment
                 </li>
                 <li>
-                  <span className="font-semibold text-ink">3.</span> Enter{" "}
-                  <span className="font-semibold tabular-nums text-ink">
-                    ₹{upiAmount}
-                  </span>{" "}
-                  and pay
+                  <span className="font-semibold text-ink">3.</span> Return here
+                  and tap I&apos;ve paid
                 </li>
               </ol>
 
               <button
                 type="button"
-                onClick={() => void payViaGpaySendMoney()}
+                onClick={payWithAmountAutofill}
                 className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-accent py-3.5 text-sm font-semibold text-ink transition hover:brightness-95"
               >
-                {copied === "both" || copied === "vpa"
-                  ? "UPI ID copied · Opening GPay…"
-                  : "Copy UPI ID & open Google Pay"}
+                Pay {formatPrice(total)} with Google Pay
               </button>
 
               {payHint ? (
@@ -361,14 +356,13 @@ export function CheckoutDialog({
                 </p>
               ) : (
                 <p className="text-center text-xs text-ink/45">
-                  Auto-fill often fails on Axis with a fake “limit” error — this
-                  uses the Send money path that already works.
+                  Opens GPay with {formatPrice(total)} for {upi.vpa}
                 </p>
               )}
 
               <div className="rounded-2xl border border-ink/10 bg-panel px-3 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink/40">
-                  Copy manually
+                  If amount shows ₹0 / fails
                 </p>
                 <div className="mt-2 space-y-2">
                   <CopyRow
@@ -385,17 +379,14 @@ export function CheckoutDialog({
                     onCopy={() => void copyText(upiAmount, "amount")}
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void payViaGpaySendMoney()}
+                  className="mt-3 w-full cursor-pointer rounded-xl border border-ink/12 py-2.5 text-xs font-semibold text-ink/70 transition hover:bg-canvas"
+                >
+                  Copy UPI ID & open GPay (enter amount yourself)
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={tryMerchantAutofill}
-                className="w-full text-center text-xs font-medium text-ink/40 underline-offset-2 hover:text-ink/65 hover:underline"
-              >
-                {upi.hasMerchantMcc
-                  ? "Try merchant autofill (amount in GPay)"
-                  : "Why autofill fails (needs merchant MCC)"}
-              </button>
 
               <button
                 type="button"
