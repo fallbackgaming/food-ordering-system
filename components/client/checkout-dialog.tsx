@@ -95,6 +95,8 @@ export function CheckoutDialog({
           .replace(/[^\w\s.-]/g, " ")
           .slice(0, 40),
         mcc: upi.mcc,
+        mode: upi.mode,
+        purpose: upi.purpose,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not open Google Pay");
