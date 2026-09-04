@@ -1,34 +1,15 @@
 /**
- * Same PhonePe merchant VPA as the printed QR, with amount filled in.
- * Static standee QR has no `am=` — we build a fresh UPI Intent for each cart.
+ * PhonePe *merchant* QR (Q…@ybl) only accepts the official scan-to-pay QR.
+ * Homemade upi://pay?am=… Intents look like P2P and the bank declines them
+ * after PIN: "payment to this receiver was declined".
  */
 
-export type UpiPayParams = {
-  vpa: string;
-  payeeName: string;
-  amountPaise: number;
-  transactionRef: string;
-  note?: string;
-  mcc?: string;
-  mode?: string;
-  purpose?: string;
-};
+export type UpiAppId = "phonepe" | "gpay" | "paytm";
 
-export function getCafeUpiConfig(): {
-  vpa: string;
-  payeeName: string;
-  mcc?: string;
-  mode?: string;
-  purpose?: string;
-} {
-  const mcc = process.env.NEXT_PUBLIC_UPI_MCC?.trim();
-  const validMcc = mcc && /^\d{4}$/.test(mcc) ? mcc : "0000";
+export function getCafeUpiConfig(): { vpa: string; payeeName: string } {
   return {
     vpa: process.env.NEXT_PUBLIC_UPI_VPA?.trim() || "Q048350660@ybl",
     payeeName: process.env.NEXT_PUBLIC_UPI_PAYEE_NAME?.trim() || "Fallback",
-    mcc: validMcc,
-    mode: process.env.NEXT_PUBLIC_UPI_MODE?.trim() || "02",
-    purpose: process.env.NEXT_PUBLIC_UPI_PURPOSE?.trim() || "00",
   };
 }
 
@@ -36,81 +17,37 @@ export function paiseToUpiAmount(paise: number): string {
   return (Math.max(0, paise) / 100).toFixed(2);
 }
 
-function encodeParam(value: string, opts?: { keepAt?: boolean }) {
-  if (opts?.keepAt) {
-    return value
-      .split("@")
-      .map((part) => encodeURIComponent(part))
-      .join("@");
-  }
-  return encodeURIComponent(value);
-}
-
-export function buildUpiPayUri(params: UpiPayParams): string {
-  if (params.amountPaise <= 0) {
-    throw new Error("Amount must be greater than zero");
-  }
-
-  const amount = paiseToUpiAmount(params.amountPaise);
-  const tr = params.transactionRef.replace(/[^a-zA-Z0-9]/g, "").slice(0, 35);
-  const parts: Array<[string, string]> = [
-    ["pa", encodeParam(params.vpa.trim(), { keepAt: true })],
-    ["pn", encodeParam(params.payeeName.trim())],
-  ];
-
-  if (params.mcc) parts.push(["mc", params.mcc]);
-  if (params.mode) parts.push(["mode", params.mode]);
-  if (params.purpose) parts.push(["purpose", params.purpose]);
-  if (tr) parts.push(["tr", tr]);
-
-  const note = params.note
-    ?.trim()
-    .replace(/[^\w\s.-]/g, " ")
-    .trim()
-    .slice(0, 50);
-  if (note) parts.push(["tn", encodeParam(note)]);
-
-  parts.push(["am", amount], ["cu", "INR"]);
-
-  return `upi://pay?${parts.map(([k, v]) => `${k}=${v}`).join("&")}`;
-}
-
-export type UpiAppId = "phonepe" | "gpay" | "paytm";
-
-const ANDROID_UPI_PACKAGES: Record<UpiAppId, string> = {
-  phonepe: "com.phonepe.app",
-  gpay: "com.google.android.apps.nbu.paisa.user",
-  paytm: "net.one97.paytm",
-};
-
-function payQuery(uri: string) {
-  return uri.replace(/^upi:\/\/pay\?/, "");
-}
-
-export function isAndroidUpiDevice() {
+function isAndroid() {
   return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 }
 
-/** Never use bare upi:// — WhatsApp registers that scheme and often opens instead. */
-export function openNamedUpiApp(app: UpiAppId, upiPayUri: string) {
-  const q = payQuery(upiPayUri);
-
-  if (isAndroidUpiDevice()) {
+/** Open the UPI app so the guest can scan — do not pass a pay Intent. */
+export function openNamedUpiApp(app: UpiAppId) {
+  if (isAndroid()) {
+    if (app === "phonepe") {
+      window.location.href =
+        "intent://home#Intent;scheme=phonepe;package=com.phonepe.app;end";
+      return;
+    }
+    if (app === "gpay") {
+      window.location.href =
+        "intent://pay#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;end";
+      return;
+    }
     window.location.href =
-      `intent://pay?${q}` +
-      `#Intent;scheme=upi;package=${ANDROID_UPI_PACKAGES[app]};end`;
+      "intent://#Intent;scheme=paytmmp;package=net.one97.paytm;end";
     return;
   }
 
   if (app === "gpay") {
-    window.location.href = `gpay://upi/pay?${q}`;
+    window.location.href = "gpay://";
     return;
   }
   if (app === "paytm") {
-    window.location.href = `paytmmp://pay?${q}`;
+    window.location.href = "paytmmp://";
     return;
   }
-  window.location.href = `phonepe://pay?${q}`;
+  window.location.href = "phonepe://";
 }
 
 export async function copyText(value: string): Promise<boolean> {
