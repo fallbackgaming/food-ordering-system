@@ -75,18 +75,42 @@ export function buildUpiPayUri(params: UpiPayParams): string {
   return `upi://pay?${parts.map(([k, v]) => `${k}=${v}`).join("&")}`;
 }
 
-export function openUpiApp(uri: string) {
-  const android =
-    typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
-  const query = uri.replace(/^upi:\/\/pay\?/, "");
+export type UpiAppId = "phonepe" | "gpay" | "paytm";
 
-  if (android) {
-    // No package= so the OS shows every UPI app, not only GPay / PhonePe.
-    window.location.href = `intent://pay?${query}#Intent;scheme=upi;end`;
+const ANDROID_UPI_PACKAGES: Record<UpiAppId, string> = {
+  phonepe: "com.phonepe.app",
+  gpay: "com.google.android.apps.nbu.paisa.user",
+  paytm: "net.one97.paytm",
+};
+
+function payQuery(uri: string) {
+  return uri.replace(/^upi:\/\/pay\?/, "");
+}
+
+export function isAndroidUpiDevice() {
+  return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+}
+
+/** Never use bare upi:// — WhatsApp registers that scheme and often opens instead. */
+export function openNamedUpiApp(app: UpiAppId, upiPayUri: string) {
+  const q = payQuery(upiPayUri);
+
+  if (isAndroidUpiDevice()) {
+    window.location.href =
+      `intent://pay?${q}` +
+      `#Intent;scheme=upi;package=${ANDROID_UPI_PACKAGES[app]};end`;
     return;
   }
 
-  window.location.href = uri;
+  if (app === "gpay") {
+    window.location.href = `gpay://upi/pay?${q}`;
+    return;
+  }
+  if (app === "paytm") {
+    window.location.href = `paytmmp://pay?${q}`;
+    return;
+  }
+  window.location.href = `phonepe://pay?${q}`;
 }
 
 export async function copyText(value: string): Promise<boolean> {

@@ -7,8 +7,9 @@ import {
   buildUpiPayUri,
   copyText as copyToClipboard,
   getCafeUpiConfig,
-  openUpiApp,
+  openNamedUpiApp,
   paiseToUpiAmount,
+  type UpiAppId,
 } from "@/lib/upi";
 import QRCode from "qrcode";
 import { useEffect, useId, useMemo, useState } from "react";
@@ -150,13 +151,13 @@ export function CheckoutDialog({
     }
   }
 
-  function payInUpiApp() {
+  function payWithApp(app: UpiAppId) {
     if (!upiUri) {
       setError("Could not build UPI payment.");
       return;
     }
     setError(null);
-    openUpiApp(upiUri);
+    openNamedUpiApp(app, upiUri);
   }
 
   return (
@@ -322,8 +323,9 @@ export function CheckoutDialog({
                 Pay {formatPrice(total)}
               </h2>
               <p className="mt-1 text-sm text-ink/55">
-                Scan this QR in any UPI app. Amount is already filled — do not
-                use the printed counter QR.
+                Scan this QR in PhonePe, GPay, or Paytm. Amount is already
+                filled. Do not use a generic UPI link — phones often open
+                WhatsApp instead.
               </p>
             </div>
 
@@ -343,13 +345,29 @@ export function CheckoutDialog({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={payInUpiApp}
-                className="w-full rounded-2xl bg-ink py-3 text-sm font-semibold text-canvas transition hover:bg-ink/90"
-              >
-                Open UPI app
-              </button>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => payWithApp("phonepe")}
+                  className="rounded-2xl bg-ink py-3 text-xs font-semibold text-canvas transition hover:bg-ink/90"
+                >
+                  PhonePe
+                </button>
+                <button
+                  type="button"
+                  onClick={() => payWithApp("gpay")}
+                  className="rounded-2xl bg-ink py-3 text-xs font-semibold text-canvas transition hover:bg-ink/90"
+                >
+                  GPay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => payWithApp("paytm")}
+                  className="rounded-2xl bg-ink py-3 text-xs font-semibold text-canvas transition hover:bg-ink/90"
+                >
+                  Paytm
+                </button>
+              </div>
 
               <div className="rounded-2xl border border-ink/8 bg-panel px-3 py-3 text-sm">
                 <div className="flex items-center justify-between gap-2">
@@ -385,8 +403,8 @@ export function CheckoutDialog({
               </div>
 
               <p className="text-xs leading-relaxed text-ink/45">
-                PhonePe, GPay, Paytm, BHIM — any UPI app. Staff will confirm
-                the payment before preparing the order.
+                Do not use the printed counter QR — that one has no amount.
+                Staff will confirm payment before preparing the order.
               </p>
             </div>
 
