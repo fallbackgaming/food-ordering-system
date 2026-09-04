@@ -26,6 +26,7 @@ export function OrderMenu({
 }: OrderMenuProps) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutKey, setCheckoutKey] = useState(0);
   const [checkoutLines, setCheckoutLines] = useState<CartLine[]>([]);
   const [seedOrders, setSeedOrders] = useState<StationOrder[] | undefined>();
 
@@ -80,6 +81,7 @@ export function OrderMenu({
 
   function openCheckout() {
     setCheckoutLines(lines);
+    setCheckoutKey((n) => n + 1);
     setCheckoutOpen(true);
   }
 
@@ -151,6 +153,7 @@ export function OrderMenu({
             onCheckout={openCheckout}
           />
           <CheckoutDialog
+            key={checkoutKey}
             open={checkoutOpen}
             lines={checkoutLines}
             stationLabel={stationLabel}

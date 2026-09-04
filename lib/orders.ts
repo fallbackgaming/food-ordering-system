@@ -112,11 +112,8 @@ export async function placeOrder(
 
   const station = await ensureStation(input.stationType, input.stationNumber);
 
-  // Cash on delivery stays pending; UPI and admin cash-desk can mark paid
-  const status =
-    input.paymentMethod === "upi" || input.placedByAdmin
-      ? "PAID"
-      : "PENDING_PAYMENT";
+  // Guest cash/UPI wait for staff to confirm. Admin desk orders are already collected.
+  const status = input.placedByAdmin ? "PAID" : "PENDING_PAYMENT";
 
   const order = await createOrderRecord({
     stationId: station.id,

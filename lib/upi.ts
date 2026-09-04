@@ -1,6 +1,6 @@
 /**
- * Cafe UPI helpers — PhonePe merchant QR:
- * upi://pay?pa=Q048350660@ybl&pn=PhonePeMerchant&mc=0000&mode=02&purpose=00
+ * Same PhonePe merchant VPA as the printed QR, with amount filled in.
+ * Static standee QR has no `am=` — we build a fresh UPI Intent for each cart.
  */
 
 export type UpiPayParams = {
@@ -46,7 +46,11 @@ function encodeParam(value: string, opts?: { keepAt?: boolean }) {
   return encodeURIComponent(value);
 }
 
-function payQuery(params: UpiPayParams): string {
+export function buildUpiPayUri(params: UpiPayParams): string {
+  if (params.amountPaise <= 0) {
+    throw new Error("Amount must be greater than zero");
+  }
+
   const amount = paiseToUpiAmount(params.amountPaise);
   const tr = params.transactionRef.replace(/[^a-zA-Z0-9]/g, "").slice(0, 35);
   const parts: Array<[string, string]> = [
@@ -59,54 +63,30 @@ function payQuery(params: UpiPayParams): string {
   if (params.purpose) parts.push(["purpose", params.purpose]);
   if (tr) parts.push(["tr", tr]);
 
-  const note = params.note?.trim().replace(/[^\w\s.-]/g, " ").trim().slice(0, 50);
+  const note = params.note
+    ?.trim()
+    .replace(/[^\w\s.-]/g, " ")
+    .trim()
+    .slice(0, 50);
   if (note) parts.push(["tn", encodeParam(note)]);
 
   parts.push(["am", amount], ["cu", "INR"]);
 
-  return parts.map(([k, v]) => `${k}=${v}`).join("&");
+  return `upi://pay?${parts.map(([k, v]) => `${k}=${v}`).join("&")}`;
 }
 
-/** Open GPay with VPA + amount (merchant params from PhonePe QR). */
-export function openGpayWithAmount(params: UpiPayParams) {
-  if (params.amountPaise <= 0) {
-    throw new Error("Amount must be greater than zero");
-  }
-
-  const q = payQuery(params);
+export function openUpiApp(uri: string) {
   const android =
     typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+  const query = uri.replace(/^upi:\/\/pay\?/, "");
 
-  // Prefer generic UPI intent so PhonePe / GPay / others can handle merchant VPA
   if (android) {
-    window.location.href =
-      `intent://pay?${q}` +
-      `#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
+    // No package= so the OS shows every UPI app, not only GPay / PhonePe.
+    window.location.href = `intent://pay?${query}#Intent;scheme=upi;end`;
     return;
   }
 
-  window.location.href = `gpay://upi/pay?${q}`;
-}
-
-/** Same pay URI without forcing GPay — lets the OS show the UPI app chooser. */
-export function openUpiChooserWithAmount(params: UpiPayParams) {
-  if (params.amountPaise <= 0) {
-    throw new Error("Amount must be greater than zero");
-  }
-  window.location.href = `upi://pay?${payQuery(params)}`;
-}
-
-export function openGpayApp() {
-  const android =
-    typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
-
-  if (android) {
-    window.location.href =
-      "intent://pay#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;end";
-    return;
-  }
-
-  window.location.href = "gpay://";
+  window.location.href = uri;
 }
 
 export async function copyText(value: string): Promise<boolean> {
@@ -116,12 +96,4 @@ export async function copyText(value: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-export async function startManualGpayFlow(opts: {
-  vpa: string;
-}): Promise<"ok" | "copy-failed"> {
-  const copied = await copyText(opts.vpa);
-  openGpayApp();
-  return copied ? "ok" : "copy-failed";
 }

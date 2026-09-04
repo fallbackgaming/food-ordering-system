@@ -35,7 +35,7 @@ export function AdminPlaceOrderForm({
     stations[0] ? `${stations[0].type}:${stations[0].number}` : ""
   );
   const [customerName, setCustomerName] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash">("cash");
   const [note, setNote] = useState("");
   const [qty, setQty] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -177,21 +177,14 @@ export function AdminPlaceOrderForm({
             </select>
           </label>
 
-          <label className="block">
+          <div className="block">
             <span className="mb-1.5 block text-sm font-medium text-canvas/75">
               Payment
             </span>
-            <select
-              value={paymentMethod}
-              onChange={(e) =>
-                setPaymentMethod(e.target.value as "cash" | "upi")
-              }
-              className="field-input-dark"
-            >
-              <option value="cash">Cash</option>
-              <option value="upi">UPI</option>
-            </select>
-          </label>
+            <p className="rounded-xl border border-canvas/10 bg-ink px-3 py-2.5 text-sm text-canvas/80">
+              Cash
+            </p>
+          </div>
 
           <label className="block sm:col-span-2">
             <span className="mb-1.5 block text-sm font-medium text-canvas/75">
