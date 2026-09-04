@@ -4,12 +4,14 @@ import { FoodLoader } from "@/components/ui/food-loader";
 import { formatPrice } from "@/lib/format";
 import type { CartLine, PaymentMethod } from "@/lib/types";
 import {
-  copyText as copyToClipboard,
+  buildUpiPayUri,
+  getCafeUpiConfig,
   openNamedUpiApp,
   paiseToUpiAmount,
   type UpiAppId,
 } from "@/lib/upi";
-import { useEffect, useId, useState } from "react";
+import QRCode from "qrcode";
+import { useEffect, useId, useMemo, useState } from "react";
 
 type CheckoutStep = "details" | "upi" | "success";
 type CheckoutMethod = Extract<PaymentMethod, "cash" | "upi">;
@@ -39,7 +41,8 @@ export function CheckoutDialog({
   const [placedMethod, setPlacedMethod] = useState<CheckoutMethod | null>(null);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<"amount" | null>(null);
+  const [upiUri, setUpiUri] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
   const total = lines.reduce(
@@ -48,6 +51,22 @@ export function CheckoutDialog({
   );
   const nameOk = customerName.trim().length > 0;
   const upiAmount = paiseToUpiAmount(total);
+  const upi = useMemo(() => getCafeUpiConfig(), []);
+
+  useEffect(() => {
+    if (!upiUri) return;
+    let cancelled = false;
+    void QRCode.toDataURL(upiUri, {
+      width: 360,
+      margin: 2,
+      color: { dark: "#0a0a0a", light: "#ffffff" },
+    }).then((url) => {
+      if (!cancelled) setQrDataUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [upiUri]);
 
   useEffect(() => {
     if (!open) return;
@@ -59,16 +78,6 @@ export function CheckoutDialog({
   }, [open, onClose, step]);
 
   if (!open) return null;
-
-  async function copyValue(value: string, kind: "amount") {
-    const ok = await copyToClipboard(value);
-    if (!ok) {
-      setError("Could not copy — long-press the value instead.");
-      return;
-    }
-    setCopied(kind);
-    window.setTimeout(() => setCopied(null), 2000);
-  }
 
   async function placeOrder(selected: CheckoutMethod) {
     if (!customerName.trim()) {
@@ -107,12 +116,28 @@ export function CheckoutDialog({
       setError("Cart total is zero — add items before paying.");
       return;
     }
-    setStep("upi");
+    try {
+      const uri = buildUpiPayUri({
+        amountPaise: total,
+        note: `${customerName.trim()} ${stationLabel}`,
+      });
+      setUpiUri(uri);
+      setQrDataUrl(null);
+      setStep("upi");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not start UPI payment"
+      );
+    }
   }
 
   function payWithApp(app: UpiAppId) {
+    if (!upiUri) {
+      setError("Could not build UPI payment.");
+      return;
+    }
     setError(null);
-    openNamedUpiApp(app);
+    openNamedUpiApp(app, upiUri);
   }
 
   return (
@@ -199,7 +224,9 @@ export function CheckoutDialog({
                     }`}
                   >
                     <p className="font-semibold">UPI</p>
-                    <p className="mt-0.5 text-xs text-ink/50">Scan merchant QR</p>
+                    <p className="mt-0.5 text-xs text-ink/50">
+                      Amount + name filled
+                    </p>
                   </button>
                 </div>
               </div>
@@ -276,37 +303,37 @@ export function CheckoutDialog({
                 Pay {formatPrice(total)}
               </h2>
               <p className="mt-1 text-sm text-ink/55">
-                Scan the PhonePe merchant QR in any UPI app, then enter{" "}
-                <span className="font-semibold text-ink">₹{upiAmount}</span>.
-                Do not type the UPI ID — merchant IDs decline that.
+                Tap PhonePe, GPay, or Paytm — amount ₹{upiAmount} and note{" "}
+                <span className="font-semibold text-ink">
+                  {customerName.trim()}
+                </span>{" "}
+                are filled. Or scan the QR below in any UPI app.
               </p>
             </div>
 
             <div className="space-y-3 overflow-y-auto px-4 pb-2">
-              <div className="flex justify-center rounded-2xl border border-ink/8 bg-white p-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/payment_qr.jpg"
-                  alt="Fallback PhonePe UPI QR"
-                  className="h-auto w-56"
-                />
+              <div className="flex justify-center rounded-2xl border border-ink/8 bg-white p-4">
+                {qrDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={qrDataUrl}
+                    alt="UPI QR with amount and name"
+                    className="size-52"
+                  />
+                ) : (
+                  <div className="flex size-52 items-center justify-center text-sm text-ink/40">
+                    Preparing QR…
+                  </div>
+                )}
               </div>
 
-              <div className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-center">
-                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink/45">
-                  Enter this amount
-                </p>
-                <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight">
-                  ₹{upiAmount}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void copyValue(upiAmount, "amount")}
-                  className="mt-2 text-xs font-medium text-ink/60 underline-offset-2 hover:underline"
-                >
-                  {copied === "amount" ? "Amount copied" : "Copy amount"}
-                </button>
-              </div>
+              <p className="text-center text-sm text-ink/55">
+                Pay <span className="font-semibold text-ink">₹{upiAmount}</span>
+                {" · "}
+                {upi.payeeName}
+                {" · "}
+                {customerName.trim()}
+              </p>
 
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -333,8 +360,9 @@ export function CheckoutDialog({
               </div>
 
               <p className="text-xs leading-relaxed text-ink/45">
-                Open the app, scan this screen (or the counter standee — same
-                QR), pay ₹{upiAmount}. Staff will confirm before preparing.
+                If the app says the receiver was declined, scan the printed
+                PhonePe standee and type ₹{upiAmount} yourself. Staff will
+                confirm payment.
               </p>
             </div>
 
