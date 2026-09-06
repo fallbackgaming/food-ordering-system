@@ -1,6 +1,6 @@
 "use client";
 
-import { openUpiAppIfInstalled, type UpiAppId } from "@/lib/upi";
+import { openUpiAppIfInstalled } from "@/lib/upi";
 
 function PhonePeIcon() {
   return (
@@ -52,10 +52,11 @@ function PaytmIcon() {
   );
 }
 
-    { id: "phonepe", label: "PhonePe", icon: PhonePeIcon },
-    { id: "gpay", label: "GPay", icon: GpayIcon },
-    { id: "paytm", label: "Paytm", icon: PaytmIcon },
-  ];
+const APPS = [
+  { id: "phonepe" as const, label: "PhonePe", icon: PhonePeIcon },
+  { id: "gpay" as const, label: "GPay", icon: GpayIcon },
+  { id: "paytm" as const, label: "Paytm", icon: PaytmIcon },
+];
 
 export function UpiAppIcons() {
   return (
