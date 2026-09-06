@@ -1,6 +1,6 @@
 /**
  * Official PhonePe merchant QR (no amount) — same payload as the printed standee.
- * App buttons open PhonePe / GPay / Paytm; missing apps go to Play Store or App Store.
+ * App buttons open each wallet’s QR scanner; missing apps go to Play Store or App Store.
  */
 
 export type UpiAppId = "phonepe" | "gpay" | "paytm";
@@ -55,6 +55,7 @@ const APP_LAUNCH: Record<
   UpiAppId,
   {
     scheme: string;
+    /** Path after scheme:// — must match a registered Scan & Pay route. */
     androidPath: string;
     ios: string;
     pkg: string;
@@ -64,16 +65,16 @@ const APP_LAUNCH: Record<
 > = {
   phonepe: {
     scheme: "phonepe",
-    androidPath: "pay",
-    ios: "phonepe://",
+    androidPath: "scan",
+    ios: "phonepe://scan",
     pkg: "com.phonepe.app",
     playStore: "https://play.google.com/store/apps/details?id=com.phonepe.app",
     appStore: "https://apps.apple.com/app/id1170055821",
   },
   gpay: {
     scheme: "tez",
-    androidPath: "upi/pay",
-    ios: "gpay://",
+    androidPath: "upi/qrcamera",
+    ios: "gpay://upi/qrcamera",
     pkg: "com.google.android.apps.nbu.paisa.user",
     playStore:
       "https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user",
@@ -81,8 +82,8 @@ const APP_LAUNCH: Record<
   },
   paytm: {
     scheme: "paytmmp",
-    androidPath: "pay",
-    ios: "paytmmp://",
+    androidPath: "cash_wallet?featuretype=scanner_only",
+    ios: "paytmmp://cash_wallet?featuretype=scanner_only",
     pkg: "net.one97.paytm",
     playStore: "https://play.google.com/store/apps/details?id=net.one97.paytm",
     appStore: "https://apps.apple.com/app/id473941634",
@@ -98,13 +99,14 @@ export function upiAppStoreUrl(app: UpiAppId) {
   return isIOS() ? spec.appStore : spec.playStore;
 }
 
-/** Chrome Android Intent URL: open the app, or Play Store if it is missing. */
+/** Chrome Android Intent URL: open that app’s scanner, or Play Store if missing. */
 export function androidUpiIntentUrl(app: UpiAppId) {
   const spec = APP_LAUNCH[app];
   const play = encodeURIComponent(spec.playStore);
   return (
     `intent://${spec.androidPath}#Intent;scheme=${spec.scheme};` +
-    `package=${spec.pkg};S.browser_fallback_url=${play};end`
+    `package=${spec.pkg};action=android.intent.action.VIEW;` +
+    `S.browser_fallback_url=${play};end`
   );
 }
 
@@ -133,7 +135,7 @@ function openSchemeThenStore(appUrl: string, marketplaceUrl: string) {
   window.location.href = appUrl;
 }
 
-/** Opens the UPI app if installed; otherwise Play Store (Android) or App Store (iOS). */
+/** Opens the UPI app’s QR scanner if installed; otherwise Play Store or App Store. */
 export function openUpiAppIfInstalled(app: UpiAppId) {
   const spec = APP_LAUNCH[app];
 

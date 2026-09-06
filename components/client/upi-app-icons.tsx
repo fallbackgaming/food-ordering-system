@@ -56,9 +56,9 @@ export function UpiAppIcons() {
     <div>
       <p className="mb-1.5 text-sm font-medium">Pay with UPI (optional)</p>
       <p className="mb-2 text-xs text-ink/50">
-        Tap an app to open it. If it is not installed, you will be taken to the
-        Play Store or App Store. Scan the station payment QR — this does not
-        place your order.
+        Tap an app to open its QR scanner. Point it at the station payment QR.
+        If the app is not installed, you will be taken to the Play Store or App
+        Store. This does not place your order.
       </p>
       <div className="grid grid-cols-3 gap-2">
         {APPS.map((app) => (
