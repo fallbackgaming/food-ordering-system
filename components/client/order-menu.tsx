@@ -8,7 +8,7 @@ import {
   toStationOrder,
   type StationOrder,
 } from "@/components/client/station-order-status";
-import type { CartLine, MenuItem, PaymentMethod, StationType } from "@/lib/types";
+import type { CartLine, MenuItem, StationType } from "@/lib/types";
 import { useMemo, useState } from "react";
 
 type OrderMenuProps = {
@@ -85,10 +85,7 @@ export function OrderMenu({
     setCheckoutOpen(true);
   }
 
-  async function placeOrder(
-    method: Extract<PaymentMethod, "cash" | "upi">,
-    customerName: string
-  ) {
+  async function placeOrder(method: "cash", customerName: string) {
     const res = await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

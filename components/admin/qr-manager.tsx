@@ -7,6 +7,7 @@ import {
   composeStationWallpaper,
   downloadDataUrl,
 } from "@/lib/station-wallpaper";
+import { officialMerchantPayUri } from "@/lib/upi";
 
 type StationRow = {
   id: string;
@@ -142,16 +143,24 @@ export function QrManager({ initialStations, appOrigin }: QrManagerProps) {
     setWallpaperBusyId(station.id);
     try {
       const url = `${appOrigin}${orderPath(station.type, station.number)}`;
-      const qrDataUrl = await QRCode.toDataURL(url, {
-        width: 1024,
-        margin: 1,
-        color: { dark: "#0a0a0a", light: "#ffffff" },
-        errorCorrectionLevel: "M",
-      });
+      const [menuQrDataUrl, paymentQrDataUrl] = await Promise.all([
+        QRCode.toDataURL(url, {
+          width: 1024,
+          margin: 1,
+          color: { dark: "#0a0a0a", light: "#ffffff" },
+          errorCorrectionLevel: "M",
+        }),
+        QRCode.toDataURL(officialMerchantPayUri(), {
+          width: 1024,
+          margin: 1,
+          color: { dark: "#0a0a0a", light: "#ffffff" },
+          errorCorrectionLevel: "M",
+        }),
+      ]);
       const wallpaper = await composeStationWallpaper({
-        qrDataUrl,
+        menuQrDataUrl,
+        paymentQrDataUrl,
         stationName: station.name,
-        stationMeta: `${station.type.toUpperCase()} · #${station.number}`,
       });
       downloadDataUrl(
         wallpaper,
@@ -321,7 +330,8 @@ export function QrManager({ initialStations, appOrigin }: QrManagerProps) {
                 Station QR codes
               </h2>
               <p className="mt-1 text-sm text-canvas/50">
-                Download QR, wallpaper, or print for each PC / PlayStation.
+                Download QR, wallpaper (menu + payment), or print for each PC /
+                PlayStation.
               </p>
             </div>
             <p className="text-xs tabular-nums text-canvas/40">

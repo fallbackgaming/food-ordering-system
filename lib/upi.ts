@@ -1,17 +1,9 @@
 /**
- * Official PhonePe merchant QR payload, plus amount and a note (guest name).
- * pa=Q048350660@ybl&pn=PhonePeMerchant&mc=0000&mode=02&purpose=00
- *
- * App buttons must pass this query into PhonePe / GPay / Paytm — never bare
- * upi:// (WhatsApp) and never open the app with an empty pay Intent.
+ * Official PhonePe merchant QR (no amount) — same payload as the printed standee.
+ * App launchers open PhonePe / GPay / Paytm only; they do not start a pay Intent.
  */
 
 export type UpiAppId = "phonepe" | "gpay" | "paytm";
-
-export type UpiPayParams = {
-  amountPaise: number;
-  note: string;
-};
 
 export function getCafeUpiConfig() {
   const mcc = process.env.NEXT_PUBLIC_UPI_MCC?.trim();
@@ -25,10 +17,6 @@ export function getCafeUpiConfig() {
   };
 }
 
-export function paiseToUpiAmount(paise: number): string {
-  return (Math.max(0, paise) / 100).toFixed(2);
-}
-
 function encodeParam(value: string, keepAt = false) {
   if (keepAt) {
     return value
@@ -39,71 +27,53 @@ function encodeParam(value: string, keepAt = false) {
   return encodeURIComponent(value);
 }
 
-export function buildUpiPayUri(params: UpiPayParams): string {
-  if (params.amountPaise <= 0) {
-    throw new Error("Amount must be greater than zero");
-  }
-
+/** Static merchant pay URI for wallpaper / standee (no am=). */
+export function officialMerchantPayUri(): string {
   const cfg = getCafeUpiConfig();
-  const amount = paiseToUpiAmount(params.amountPaise);
-  const note = params.note
-    .replace(/[^\w\s.-]/g, " ")
-    .trim()
-    .slice(0, 50);
-
   const parts: Array<[string, string]> = [
     ["pa", encodeParam(cfg.vpa.trim(), true)],
     ["pn", encodeParam(cfg.payeeName.trim())],
     ["mc", cfg.mcc],
     ["mode", cfg.mode],
     ["purpose", cfg.purpose],
-    ["am", amount],
-    ["cu", "INR"],
   ];
-  if (note) parts.push(["tn", encodeParam(note)]);
-
   return `upi://pay?${parts.map(([k, v]) => `${k}=${v}`).join("&")}`;
-}
-
-function payQuery(upiPayUri: string) {
-  return upiPayUri.replace(/^upi:\/\/pay\?/, "");
 }
 
 function isAndroid() {
   return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 }
 
-export function openNamedUpiApp(app: UpiAppId, upiPayUri: string) {
-  const q = payQuery(upiPayUri);
+const APP_LAUNCH: Record<
+  UpiAppId,
+  { scheme: string; ios: string; pkg: string }
+> = {
+  phonepe: {
+    scheme: "phonepe",
+    ios: "phonepe://",
+    pkg: "com.phonepe.app",
+  },
+  gpay: {
+    scheme: "tez",
+    ios: "gpay://",
+    pkg: "com.google.android.apps.nbu.paisa.user",
+  },
+  paytm: {
+    scheme: "paytmmp",
+    ios: "paytmmp://",
+    pkg: "net.one97.paytm",
+  },
+};
 
+/** Opens the UPI app if installed. Missing apps stay on this page (no Play Store). */
+export function openUpiAppIfInstalled(app: UpiAppId) {
+  const spec = APP_LAUNCH[app];
   if (isAndroid()) {
-    const pkg =
-      app === "phonepe"
-        ? "com.phonepe.app"
-        : app === "gpay"
-          ? "com.google.android.apps.nbu.paisa.user"
-          : "net.one97.paytm";
+    const fallback = encodeURIComponent(window.location.href);
     window.location.href =
-      `intent://pay?${q}#Intent;scheme=upi;package=${pkg};end`;
+      `intent://launch#Intent;scheme=${spec.scheme};package=${spec.pkg};` +
+      `S.browser_fallback_url=${fallback};end`;
     return;
   }
-
-  if (app === "gpay") {
-    window.location.href = `gpay://upi/pay?${q}`;
-    return;
-  }
-  if (app === "paytm") {
-    window.location.href = `paytmmp://pay?${q}`;
-    return;
-  }
-  window.location.href = `phonepe://pay?${q}`;
-}
-
-export async function copyText(value: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
+  window.location.href = spec.ios;
 }

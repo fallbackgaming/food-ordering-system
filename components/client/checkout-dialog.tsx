@@ -1,30 +1,17 @@
 "use client";
 
 import { FoodLoader } from "@/components/ui/food-loader";
+import { UpiAppIcons } from "@/components/client/upi-app-icons";
 import { formatPrice } from "@/lib/format";
-import type { CartLine, PaymentMethod } from "@/lib/types";
-import {
-  buildUpiPayUri,
-  getCafeUpiConfig,
-  openNamedUpiApp,
-  paiseToUpiAmount,
-  type UpiAppId,
-} from "@/lib/upi";
-import QRCode from "qrcode";
-import { useEffect, useId, useMemo, useState } from "react";
-
-type CheckoutStep = "details" | "upi" | "success";
-type CheckoutMethod = Extract<PaymentMethod, "cash" | "upi">;
+import type { CartLine } from "@/lib/types";
+import { useEffect, useId, useState } from "react";
 
 type CheckoutDialogProps = {
   open: boolean;
   lines: CartLine[];
   stationLabel: string;
   onClose: () => void;
-  onPlaceOrder: (
-    method: CheckoutMethod,
-    customerName: string
-  ) => Promise<void>;
+  onPlaceOrder: (method: "cash", customerName: string) => Promise<void>;
 };
 
 export function CheckoutDialog({
@@ -35,14 +22,10 @@ export function CheckoutDialog({
   onPlaceOrder,
 }: CheckoutDialogProps) {
   const titleId = useId();
-  const [step, setStep] = useState<CheckoutStep>("details");
-  const [method, setMethod] = useState<CheckoutMethod | null>(null);
+  const [step, setStep] = useState<"details" | "success">("details");
   const [customerName, setCustomerName] = useState("");
-  const [placedMethod, setPlacedMethod] = useState<CheckoutMethod | null>(null);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [upiUri, setUpiUri] = useState<string | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
   const total = lines.reduce(
@@ -50,23 +33,6 @@ export function CheckoutDialog({
     0
   );
   const nameOk = customerName.trim().length > 0;
-  const upiAmount = paiseToUpiAmount(total);
-  const upi = useMemo(() => getCafeUpiConfig(), []);
-
-  useEffect(() => {
-    if (!upiUri) return;
-    let cancelled = false;
-    void QRCode.toDataURL(upiUri, {
-      width: 360,
-      margin: 2,
-      color: { dark: "#0a0a0a", light: "#ffffff" },
-    }).then((url) => {
-      if (!cancelled) setQrDataUrl(url);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [upiUri]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,65 +45,21 @@ export function CheckoutDialog({
 
   if (!open) return null;
 
-  async function placeOrder(selected: CheckoutMethod) {
+  async function placeOrder() {
     if (!customerName.trim()) {
       setError("Please enter your name");
-      setStep("details");
       return;
     }
     setPlacing(true);
     setError(null);
     try {
-      await onPlaceOrder(selected, customerName.trim());
-      setPlacedMethod(selected);
+      await onPlaceOrder("cash", customerName.trim());
       setStep("success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not place order");
     } finally {
       setPlacing(false);
     }
-  }
-
-  function continueFromDetails() {
-    if (!method) {
-      setError("Choose cash or UPI");
-      return;
-    }
-    if (!nameOk) {
-      setError("Please enter your name");
-      return;
-    }
-    setError(null);
-    if (method === "cash") {
-      void placeOrder("cash");
-      return;
-    }
-    if (total <= 0) {
-      setError("Cart total is zero — add items before paying.");
-      return;
-    }
-    try {
-      const uri = buildUpiPayUri({
-        amountPaise: total,
-        note: `${customerName.trim()} ${stationLabel}`,
-      });
-      setUpiUri(uri);
-      setQrDataUrl(null);
-      setStep("upi");
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not start UPI payment"
-      );
-    }
-  }
-
-  function payWithApp(app: UpiAppId) {
-    if (!upiUri) {
-      setError("Could not build UPI payment.");
-      return;
-    }
-    setError(null);
-    openNamedUpiApp(app, upiUri);
   }
 
   return (
@@ -180,7 +102,7 @@ export function CheckoutDialog({
               </h2>
               <p className="mt-1 text-sm text-ink/55">
                 {itemCount} item{itemCount === 1 ? "" : "s"} ·{" "}
-                {formatPrice(total)}
+                {formatPrice(total)} · pay cash on delivery
               </p>
             </div>
 
@@ -198,38 +120,6 @@ export function CheckoutDialog({
                   required
                 />
               </label>
-
-              <div>
-                <p className="mb-1.5 text-sm font-medium">Pay with</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMethod("cash")}
-                    className={`rounded-2xl border px-3 py-3 text-left transition ${
-                      method === "cash"
-                        ? "border-accent bg-accent/15"
-                        : "border-ink/10 bg-panel hover:border-ink/20"
-                    }`}
-                  >
-                    <p className="font-semibold">Cash</p>
-                    <p className="mt-0.5 text-xs text-ink/50">On delivery</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMethod("upi")}
-                    className={`rounded-2xl border px-3 py-3 text-left transition ${
-                      method === "upi"
-                        ? "border-accent bg-accent/15"
-                        : "border-ink/10 bg-panel hover:border-ink/20"
-                    }`}
-                  >
-                    <p className="font-semibold">UPI</p>
-                    <p className="mt-0.5 text-xs text-ink/50">
-                      Amount + name filled
-                    </p>
-                  </button>
-                </div>
-              </div>
 
               <div className="rounded-2xl border border-ink/8 bg-panel px-3 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink/40">
@@ -255,6 +145,15 @@ export function CheckoutDialog({
                   <span className="tabular-nums">{formatPrice(total)}</span>
                 </div>
               </div>
+
+              <div className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3">
+                <p className="font-semibold">Cash on delivery</p>
+                <p className="mt-0.5 text-sm text-ink/55">
+                  Pay when staff brings your order to {stationLabel}.
+                </p>
+              </div>
+
+              <UpiAppIcons />
             </div>
 
             {error ? (
@@ -276,123 +175,11 @@ export function CheckoutDialog({
               </button>
               <button
                 type="button"
-                disabled={!nameOk || !method || placing}
-                onClick={() => continueFromDetails()}
+                disabled={!nameOk || placing}
+                onClick={() => void placeOrder()}
                 className="flex-1 rounded-2xl bg-accent py-3 text-sm font-semibold text-ink transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {method === "upi"
-                  ? "Continue to pay"
-                  : placing
-                    ? "Placing…"
-                    : "Place order"}
-              </button>
-            </div>
-          </>
-        )}
-
-        {step === "upi" && (
-          <>
-            <div className="px-5 py-4">
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent">
-                UPI · {stationLabel}
-              </p>
-              <h2
-                id={titleId}
-                className="mt-1 text-2xl font-bold tracking-tight"
-              >
-                Pay {formatPrice(total)}
-              </h2>
-              <p className="mt-1 text-sm text-ink/55">
-                Tap PhonePe, GPay, or Paytm — amount ₹{upiAmount} and note{" "}
-                <span className="font-semibold text-ink">
-                  {customerName.trim()}
-                </span>{" "}
-                are filled. Or scan the QR below in any UPI app.
-              </p>
-            </div>
-
-            <div className="space-y-3 overflow-y-auto px-4 pb-2">
-              <div className="flex justify-center rounded-2xl border border-ink/8 bg-white p-4">
-                {qrDataUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={qrDataUrl}
-                    alt="UPI QR with amount and name"
-                    className="size-52"
-                  />
-                ) : (
-                  <div className="flex size-52 items-center justify-center text-sm text-ink/40">
-                    Preparing QR…
-                  </div>
-                )}
-              </div>
-
-              <p className="text-center text-sm text-ink/55">
-                Pay <span className="font-semibold text-ink">₹{upiAmount}</span>
-                {" · "}
-                {upi.payeeName}
-                {" · "}
-                {customerName.trim()}
-              </p>
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => payWithApp("phonepe")}
-                  className="rounded-2xl bg-ink py-3 text-xs font-semibold text-canvas transition hover:bg-ink/90"
-                >
-                  PhonePe
-                </button>
-                <button
-                  type="button"
-                  onClick={() => payWithApp("gpay")}
-                  className="rounded-2xl bg-ink py-3 text-xs font-semibold text-canvas transition hover:bg-ink/90"
-                >
-                  GPay
-                </button>
-                <button
-                  type="button"
-                  onClick={() => payWithApp("paytm")}
-                  className="rounded-2xl bg-ink py-3 text-xs font-semibold text-canvas transition hover:bg-ink/90"
-                >
-                  Paytm
-                </button>
-              </div>
-
-              <p className="text-xs leading-relaxed text-ink/45">
-                If the app says the receiver was declined, scan the printed
-                PhonePe standee and type ₹{upiAmount} yourself. Staff will
-                confirm payment.
-              </p>
-            </div>
-
-            {error ? (
-              <p
-                className="px-4 pb-2 text-sm font-medium text-red-600"
-                role="alert"
-              >
-                {error}
-              </p>
-            ) : null}
-
-            <div className="flex gap-2 border-t border-ink/8 p-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setStep("details");
-                }}
-                className="flex-1 rounded-2xl border border-ink/12 py-3 text-sm font-medium transition hover:bg-panel"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                disabled={placing}
-                onClick={() => void placeOrder("upi")}
-                className="flex-1 rounded-2xl bg-accent py-3 text-sm font-semibold text-ink transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                I&apos;ve paid
+                {placing ? "Placing…" : "Place order"}
               </button>
             </div>
           </>
@@ -416,9 +203,8 @@ export function CheckoutDialog({
               </span>
               . We&apos;ll bring it to{" "}
               <span className="font-semibold text-ink">{stationLabel}</span>
-              {placedMethod === "upi"
-                ? ". Staff will confirm your UPI payment."
-                : ". Pay cash on delivery."}
+              . Pay cash on delivery, or scan the payment QR on the station
+              screen.
             </p>
             <button
               type="button"
